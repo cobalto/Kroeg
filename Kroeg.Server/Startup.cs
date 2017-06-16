@@ -84,7 +84,8 @@ namespace Kroeg.Server
             services.AddTransient<IEntityStore>((provider) =>
             {
                 var dbservice = provider.GetRequiredService<DatabaseEntityStore>();
-                return new RetrievingEntityStore(dbservice);
+                var flattener = provider.GetRequiredService<EntityFlattener>();
+                return new RetrievingEntityStore(dbservice, flattener);
             });
         }
 

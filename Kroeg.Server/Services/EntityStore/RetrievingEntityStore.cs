@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
+using Kroeg.Server.Tools;
 
 namespace Kroeg.Server.Services.EntityStore
 {
@@ -9,9 +10,12 @@ namespace Kroeg.Server.Services.EntityStore
     {
         public IEntityStore Next { get; }
 
-        public RetrievingEntityStore(IEntityStore next = null)
+        private readonly EntityFlattener _entityFlattener;
+
+        public RetrievingEntityStore(IEntityStore next, EntityFlattener entityFlattener)
         {
             Next = next;
+            _entityFlattener = entityFlattener;
         }
 
         public async Task<APEntity> GetEntity(string id, bool doRemote)
@@ -33,13 +37,12 @@ namespace Kroeg.Server.Services.EntityStore
 
             var htc = new HttpClient();
             htc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/activity+json");
+
             var @object = ASObject.Parse(await htc.GetStringAsync(id));
+            await _entityFlattener.FlattenAndStore(Next, @object);
+            await Next.CommitChanges();
 
-            entity = APEntity.From(@object);
-
-            //if (Next != null) entity = await Next.StoreEntity(entity);
-
-            return entity;
+            return await Next.GetEntity(id, true);
         }
 
         public async Task<APEntity> StoreEntity(APEntity entity) => Next == null ? entity : await Next.StoreEntity(entity);
