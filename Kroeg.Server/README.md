@@ -31,7 +31,7 @@ All entities are requested via a simple interface: `IEntityStore`. All these ent
 When data comes in from an external source, the server doesn't directly push it into the database, but instead puts it in a `StagingEntityStore`. This entity store is used for the processing the request, and once the data appears to be fine, we just commit the changes into the actual database. There is no purging mechanism yet, so cached entities stay forever (and never get re-requested).
 
 ### OStatus support
-OStatus support is done by translating the Atom XML into ActivityStreams2 JSON-LD and back at the very first and last moments. `Undo`s of likes and retweets are slightly unstable stioll, and use PostgreSQL's `jsonb` to implement.
+OStatus support is done by translating the Atom XML into ActivityStreams2 JSON-LD and back at the very first and last moments. `Undo`s of likes and retweets are slightly unstable still, and use PostgreSQL's `jsonb` to implement.
 
 ## TODOs
 There's a ton left to do.
