@@ -12,7 +12,7 @@ using Kroeg.ActivityStreams;
 using Kroeg.Server.Configuration;
 using Kroeg.Server.Middleware.Handlers;
 using Kroeg.Server.Middleware.Handlers.ClientToServer;
-using Kroeg.Server.Middleware.Handlers.ServerToClient;
+using Kroeg.Server.Middleware.Handlers.ServerToServer;
 using Kroeg.Server.Middleware.Handlers.Shared;
 using Kroeg.Server.Models;
 using Kroeg.Server.OStatusCompat;
@@ -277,14 +277,6 @@ namespace Kroeg.Server.Middleware
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) inbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
-
-                var activityType = (string)activity["type"].First().Primitive;
-                if (activityType == "Create" || !_entityData.IsActivity(activityType))
-                {
-                    activity["id"].Clear();
-                    if (activity["object"].SingleOrDefault()?.SubObject != null)
-                        activity["object"].Single().SubObject["id"].Clear();
-                }
 
                 //protected BaseHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox)
 

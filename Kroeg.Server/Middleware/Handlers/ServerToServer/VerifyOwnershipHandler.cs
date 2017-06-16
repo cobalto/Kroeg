@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
 
-namespace Kroeg.Server.Middleware.Handlers.ServerToClient
+namespace Kroeg.Server.Middleware.Handlers.ServerToServer
 {
     public class VerifyOwnershipHandler : BaseHandler
     {
