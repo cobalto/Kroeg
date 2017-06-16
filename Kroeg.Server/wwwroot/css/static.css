@@ -1,0 +1,91 @@
+﻿body {
+    background: #eee;
+    font-size: 90%;
+}
+
+* {
+    font-family: sans-serif;
+    text-decoration-skip: ink;
+}
+
+
+.container {
+    width: 90%;
+    margin: 20px 5% 20px 5%;
+    box-sizing: border-box;
+    border-radius: 10px;
+    padding: 10px;
+    background: #fff;
+}
+
+@media only screen and (min-width: 800px) {
+    .container {
+        width: 720px;
+        left: 50%;
+        margin-left: -360px;
+        margin-right: 0;
+        position: relative;
+    }
+}
+.container pre {
+    width: calc(100% - 20px);
+    background: #222;
+    color: #fff;
+    padding: 10px 10px;
+}
+
+.k-object {
+    padding: 20px 0 10px 72px;
+    border-bottom: 1px solid #eee;
+    min-height: 52px;
+}
+
+.k-object-content .k-object {
+    padding-top: 5px;
+    padding-left: 60px;
+}
+
+.k-object:last-child {
+    border-bottom: 0 solid transparent;
+}
+
+.k-object .k-actor-icon {
+    margin-left: -60px;
+    position: absolute;
+}
+
+.k-actor-name {
+    font-weight: bold;
+    font-size: 110%;
+    color: #000000;
+    text-decoration: none;
+}
+
+.k-actor-id {
+    font-size: 80%;
+    color: #000080;
+    text-decoration: none;
+}
+
+    .k-actor-name:hover, .k-actor-id:hover {
+        text-decoration: underline;
+        text-decoration-skip: ink;
+    }
+
+.k-object .k-actor {
+    margin-bottom: 2px;
+}
+
+
+.k-object-footer {
+    padding-top: 5px;
+}
+
+.k-footer-button {
+    min-width: 80px;
+    display: inline-block;
+}
+
+.k-collection-page {
+    list-style-type: none;
+}

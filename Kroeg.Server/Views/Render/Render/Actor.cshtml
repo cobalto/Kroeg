@@ -1,0 +1,61 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@model APEntity
+@using Kroeg.Server.Models
+@using Kroeg.Server.Services
+@using Kroeg.Server.Services.EntityStore
+@using Kroeg.Server.Tools
+
+@inject CollectionTools collectionHelper
+@inject EntityFlattener flattener
+@inject IEntityStore store
+
+@{
+    var id = (string) Model.Data["id"].First().Primitive;
+
+    var following = (string) Model.Data["following"].SingleOrDefault()?.Primitive;
+    var followers = (string) Model.Data["followers"].SingleOrDefault()?.Primitive;
+    var outbox = (string) Model.Data["outbox"].Single().Primitive;
+}
+
+<div class="actor">
+    <h1>
+    @if (Model.Data["preferredUsername"].Count > 0)
+    {
+        <span class="actor-username">@("@")@Model.Data["preferredUsername"].First().Primitive</span> @("(")<a href="@id" class="actor-id">@id</a>@(")")
+    }
+    else
+    {
+        <a href="@id" class="actor-id">@id</a>
+        }
+    </h1>
+
+    <div class="actor-stats">
+        @if (following != null)
+        {
+            <span class="actor-stat">
+                <em>Following:</em> <a href="@following">@await collectionHelper.Count(following)</a>
+            </span>
+        }
+        @if (followers != null)
+        {
+            <span class="actor-stat">
+                <em>Followers:</em> <a href="@followers">@await collectionHelper.Count(followers)</a>
+            </span>
+        }
+        @if (Model.IsOwner)
+        {
+            <span class="actor-stat">
+                <em>Actions:</em> <a href="@outbox">@await collectionHelper.Count(outbox)</a>
+            </span>
+        }
+    </div>
+
+    <div class="actor-recent">
+        @foreach (var element in (await collectionHelper.GetItems(outbox, count: 4)))
+        {
+            @await Html.PartialAsync("Embed/Activity", element)
+        }
+    </div>
+</div>

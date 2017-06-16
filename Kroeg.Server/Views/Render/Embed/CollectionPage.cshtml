@@ -1,0 +1,14 @@
+﻿@model Kroeg.Server.Models.APEntity
+@using Kroeg.Server.Services.EntityStore
+@using Kroeg.Server.Tools
+@inject EntityFlattener flattener
+@inject IEntityStore entityStore
+
+<ul class="k-collection-page">
+@foreach (var item in Model.Data["orderedItems"].Concat(Model.Data["items"]))
+    {
+    <li class="k-collection-item">
+        @await Html.PartialAsync("Embed/Object", await entityStore.GetEntity((string) item.Primitive, false))
+    </li>
+    }
+</ul>

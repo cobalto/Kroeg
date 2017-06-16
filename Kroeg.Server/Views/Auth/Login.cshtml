@@ -1,0 +1,17 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+    ViewBag.Title = "Log in";
+}
+
+@section Header {}
+
+@model Kroeg.Server.Controllers.AuthController.LoginViewModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+<h1>Create an account or log in to retrieve tokens</h1>
+<form asp-controller="Auth" asp-action="DoLogin" method="post">
+    <label asp-for="Username">Username: </label> <input asp-for="Username" type="text" /><br />
+    <label asp-for="Password">Password: </label> <input asp-for="Password" type="password" /><br />
+    <input type="submit" value="Submit" />
+</form>

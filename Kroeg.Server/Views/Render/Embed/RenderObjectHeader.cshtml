@@ -1,0 +1,31 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@using Kroeg.Server.Services.EntityStore
+@model Kroeg.Server.Models.APEntity
+@inject IEntityStore entityStore
+
+@{
+    var time = (string) Model.Data["updated"].Concat(Model.Data["published"]).FirstOrDefault()?.Primitive;
+    var attributedTo = (string) Model.Data["attributedTo"].FirstOrDefault()?.Primitive;
+}
+@if (attributedTo == null)
+{
+    <div class="k-actor">
+        <img src="http://via.placeholder.com/48x48" width="48" height="48" class="k-actor-icon" alt="Avatar"/>
+        <span class="k-actor-name">Someone</span>
+    </div>
+}
+else
+{
+    var actorData = (await entityStore.GetEntity((string) Model.Data["attributedTo"].First().Primitive, true)).Data;
+    var icon = (string) actorData["icon"].FirstOrDefault()?.Primitive ?? "http://via.placeholder.com/48x48";
+    var name = (string) actorData["name"].FirstOrDefault()?.Primitive;
+    var id = (string) actorData["id"].First().Primitive;
+
+    <div class="k-actor">
+        <a href="@id" class="k-actor-icon"><img src="@icon" width="48" height="48" alt="Avatar" /></a>
+        <a href="@id" class="k-actor-name">@name</a>
+        <a href="@id" class="k-actor-id">@id</a>
+    </div>
+}

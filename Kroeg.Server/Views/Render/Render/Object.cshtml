@@ -1,0 +1,26 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@model Kroeg.Server.Models.APEntity
+@using Kroeg.Server.Services.EntityStore
+@using Kroeg.Server.Tools
+
+@inject EntityData entityConfiguration
+@inject IEntityStore entityStore
+
+@{ 
+    var type = (string)Model.Data["type"].First().Primitive;
+}
+
+@if (entityConfiguration.IsActor(Model.Data))
+{
+    @await Html.PartialAsync("Render/Actor", Model)
+}
+else if (type == "OrderedCollection")
+{
+    @await Html.PartialAsync("Render/Collection", Model)
+}
+else
+{
+    @await Html.PartialAsync("Embed/Object", Model)
+}

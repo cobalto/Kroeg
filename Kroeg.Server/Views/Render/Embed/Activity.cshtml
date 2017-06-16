@@ -1,0 +1,18 @@
+﻿@model Kroeg.Server.Models.APEntity
+@using Kroeg.Server.Services.EntityStore
+@using Kroeg.Server.Tools
+@inject EntityFlattener flattener
+@inject IEntityStore entityStore
+
+@switch ((string) Model.Data["type"].First().Primitive)
+{
+    case "Create":
+        @await Html.PartialAsync("Embed/Object", await entityStore.GetEntity((string) Model.Data["object"].Single().Primitive, true))
+        break;
+    case "Like":
+        @await Html.PartialAsync("Embed/LikeActivity", Model)
+        break;
+    case "Announce":
+        @await Html.PartialAsync("Embed/AnnounceActivity", Model)
+        break;
+}

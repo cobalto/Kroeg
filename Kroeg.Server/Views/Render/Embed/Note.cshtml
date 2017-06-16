@@ -1,0 +1,64 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@using Kroeg.Server.Services
+@using Kroeg.Server.Services.EntityStore
+@using Kroeg.Server.Tools
+@model Kroeg.Server.Models.APEntity
+
+@inject EntityData entityConfiguration
+@inject CollectionTools collectionTools
+@inject IEntityStore entityStore
+
+@{
+    var likesCollection = (string)Model.Data["likes"].FirstOrDefault()?.Primitive;
+    var sharesCollection = (string)Model.Data["shares"].FirstOrDefault()?.Primitive;
+    var repliesCollection = (string)Model.Data["replies"].FirstOrDefault()?.Primitive;
+    var published = DateTime.Parse((string) Model.Data["published"].SingleOrDefault()?.Primitive);
+    var publishedText = published.ToString("hh:mm");
+
+    if (published.Date != DateTime.Today)
+    {
+        publishedText = published.ToString("MMM dd");
+    }
+}
+
+<div class="k-object k-object-note" data-id="@Model.Id" onclick="window.location=this.dataset.id">
+    @await Html.PartialAsync("Embed/RenderObjectHeader", Model)
+    <div class="k-object-text">@Model.Data["content"].First().Primitive</div>
+    <div class="k-object-footer k-footer">
+        <div class="k-footer-button">
+            <a href="@Model.Id">@publishedText</a>
+        </div>
+
+        @if (repliesCollection != null)
+        {
+            var replyCount = await collectionTools.Count(repliesCollection);
+            <div class="k-footer-button">@replyCount repl@(replyCount == 1 ? "y" : "ies")</div>
+        }
+        else
+        {
+            <div class="k-footer-button">reply</div>
+        }
+
+        @if (likesCollection != null)
+        {
+            var likesCount = await collectionTools.Count(likesCollection);
+            <div class="k-footer-button">@likesCount like@(likesCount != 1 ? "s" : "")</div>
+        }
+        else
+        {
+            <div class="k-footer-button">like</div>
+        }
+
+        @if (sharesCollection != null)
+        {
+            var sharesCount = await collectionTools.Count(sharesCollection);
+            <div class="k-footer-button">@sharesCount announce@(sharesCount != 1 ? "s" : "")</div>
+        }
+        else
+        {
+            <div class="k-footer-button">announce</div>
+        }
+    </div>
+</div>

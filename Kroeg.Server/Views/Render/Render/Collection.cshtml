@@ -1,0 +1,9 @@
+﻿@model Kroeg.Server.Models.APEntity
+@using Kroeg.Server.Services.EntityStore
+@using Kroeg.Server.Tools
+@inject EntityFlattener flattener
+@inject IEntityStore entityStore
+
+<div>
+    @await Html.PartialAsync("Embed/CollectionPage", Kroeg.Server.Models.APEntity.From(Model.Data["first"].First().SubObject))
+</div>
