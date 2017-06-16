@@ -124,10 +124,10 @@ namespace Kroeg.Server
             app.UseMiddleware<GetEntityMiddleware>();
             app.UseMvc();
 
-            app.ApplicationServices.GetRequiredService<BackgroundTaskQueuer>(); // kickstart background tasks!
 
 //            app.ApplicationServices.GetRequiredService<APContext>().Database.EnsureDeleted();
             app.ApplicationServices.GetRequiredService<APContext>().Database.EnsureCreated();
+            app.ApplicationServices.GetRequiredService<BackgroundTaskQueuer>(); // kickstart background tasks!
         }
     }
 }
