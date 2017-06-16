@@ -265,10 +265,11 @@ namespace Kroeg.Server.Middleware
             private readonly List<Type> _serverToServerHandlers = new List<Type>
             {
                 typeof(VerifyOwnershipHandler),
-                typeof(LikeFollowAnnounceHandler),
                 typeof(DeleteHandler),
-                typeof(UndoHandler),
+                // likes, follows, announces, and undos change collections. Ownership has been verified, so it's prooobably safe to commit changes into the database.
                 typeof(CommitChangesHandler),
+                typeof(LikeFollowAnnounceHandler),
+                typeof(UndoHandler),
                 typeof(DeliveryHandler)
             };
 
@@ -284,16 +285,23 @@ namespace Kroeg.Server.Middleware
 
                 try
                 {
-                    foreach (var type in _serverToServerHandlers)
+                    using (var transaction = _context.Database.BeginTransaction())
                     {
-                        var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                            stagingStore, flattened, user, inbox);
-                        var handled = await handler.Handle();
-                        flattened = handler.MainObject;
-                        if (!handled) break;
-                    }
+                        foreach (var type in _clientToServerHandlers)
+                        {
+                            var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
+                                stagingStore, flattened, user, inbox);
+                            var handled = await handler.Handle();
+                            flattened = handler.MainObject;
+                            if (!handled) break;
+                        }
 
-                    return flattened.Data;
+                        await _context.SaveChangesAsync();
+
+                        transaction.Commit();
+
+                        return flattened.Data;
+                    }
                 }
                 catch (InvalidOperationException e)
                 {
@@ -308,11 +316,13 @@ namespace Kroeg.Server.Middleware
                 typeof(ObjectWrapperHandler),
                 typeof(ActivityMissingFieldsHandler),
                 typeof(CreateActivityHandler),
+
+                // commit changes before modifying collections
+                typeof(CommitChangesHandler),
                 typeof(FollowLikeHandler),
                 typeof(AddRemoveActivityHandler),
                 typeof(UndoActivityHandler),
                 typeof(UpdateDeleteActivityHandler),
-                typeof(CommitChangesHandler),
                 typeof(DeliveryHandler)
             };
 
@@ -334,16 +344,23 @@ namespace Kroeg.Server.Middleware
 
                 try
                 {
-                    foreach (var type in _clientToServerHandlers)
+                    using (var transaction = _context.Database.BeginTransaction())
                     {
-                        var handler = (BaseHandler) ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                            stagingStore, flattened, user, outbox);
-                        var handled = await handler.Handle();
-                        flattened = handler.MainObject;
-                        if (!handled) break;
-                    }
+                        foreach (var type in _clientToServerHandlers)
+                        {
+                            var handler = (BaseHandler) ActivatorUtilities.CreateInstance(_serviceProvider, type,
+                                stagingStore, flattened, user, outbox);
+                            var handled = await handler.Handle();
+                            flattened = handler.MainObject;
+                            if (!handled) break;
+                        }
 
-                    return flattened.Data;
+                        await _context.SaveChangesAsync();
+
+                        transaction.Commit();
+
+                        return flattened.Data;
+                    }
                 }
                 catch (InvalidOperationException e)
                 {
