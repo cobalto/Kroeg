@@ -287,7 +287,7 @@ namespace Kroeg.Server.Middleware
                 {
                     using (var transaction = _context.Database.BeginTransaction())
                     {
-                        foreach (var type in _clientToServerHandlers)
+                        foreach (var type in _serverToServerHandlers)
                         {
                             var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
                                 stagingStore, flattened, user, inbox);
