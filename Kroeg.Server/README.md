@@ -36,7 +36,7 @@ OStatus support is done by translating the Atom XML into ActivityStreams2 JSON-L
 ## TODOs
 There's a ton left to do.
 
-- [ ] Implement OAuth2
+- [x] Implement OAuth2
 - [ ] Properly do authorization and authentication
 - [ ] Ensure people may view the objects. (filter on top of the entity store?)
 - [ ] Proper JSON-LD instead of the current semi-implementation (work in progress, see [Kroeg.JsonLD](../Kroeg.JsonLD))

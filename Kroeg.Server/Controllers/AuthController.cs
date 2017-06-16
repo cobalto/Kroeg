@@ -16,6 +16,8 @@ using Kroeg.Server.OStatusCompat;
 using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Newtonsoft.Json;
+using Microsoft.AspNetCore.DataProtection;
+using System.Security.Cryptography;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -33,8 +35,9 @@ namespace Kroeg.Server.Controllers
         private readonly AtomEntryParser _entryParser;
         private readonly AtomEntryGenerator _entryGenerator;
         private readonly EntityData _entityConfiguration;
+        private readonly IDataProtector _dataProtector;
 
-        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration)
+        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider)
         {
             _context = context;
             _userManager = userManager;
@@ -45,12 +48,14 @@ namespace Kroeg.Server.Controllers
             _entryParser = entryParser;
             _entryGenerator = entryGenerator;
             _entityConfiguration = entityConfiguration;
+            _dataProtector = dataProtectionProvider.CreateProtector("OAuth tokens");
         }
 
         public class LoginViewModel
         {
             public string Username { get; set; }
             public string Password { get; set; }
+            public string Redirect { get; set; }
         }
 
         public class ChooseActorModel
@@ -59,15 +64,32 @@ namespace Kroeg.Server.Controllers
             public List<UserActorPermission> Actors { get; set; }
         }
 
+        public class OAuthActorModel
+        {
+            public APUser User { get; set; }
+            public List<UserActorPermission> Actors { get; set; }
+            public string ResponseType { get; set; }
+            public string RedirectUri { get; set; }
+            public string State { get; set; }
+        }
+
+        public class OAuthChosenActorModel
+        {
+            public string ActorID { get; set; }
+            public string ResponseType { get; set; }
+            public string RedirectUri { get; set; }
+            public string State { get; set; }
+        }
+
         public class ChosenActorModel
         {
             public string ActorID { get; set; }
         }
 
         [HttpGet("login")]
-        public IActionResult Login()
+        public IActionResult Login(string redirect)
         {
-            return View();
+            return View(new LoginViewModel { Redirect = redirect });
         }
 
         [HttpPost("login"), ValidateAntiForgeryToken]
@@ -88,11 +110,112 @@ namespace Kroeg.Server.Controllers
             }
 
             if (!result.Succeeded) return View("Login");
+            if (!string.IsNullOrEmpty(model.Redirect)) return RedirectPermanent(model.Redirect);
 
             var user = await _userManager.FindByNameAsync(model.Username);
             var actors = await _context.UserActorPermissions.Where(a => a.User == user).Include(a => a.Actor).ToListAsync();
 
             return View("ChooseActor", new ChooseActorModel { User = user, Actors = actors });
+        }
+        
+        private string _appendToUri(string uri, string query)
+        {
+            var builder = new UriBuilder(uri);
+            if (builder.Query?.Length > 1)
+                builder.Query = builder.Query.Substring(1) + "&" + query;
+            else
+                builder.Query = query;
+            
+            return builder.ToString();
+        }
+
+        [HttpGet("oauth")]
+        public async Task<IActionResult> DoOAuthToken(string response_type, string redirect_uri, string state)
+        {
+            if (response_type != "token" && response_type != "code") return RedirectPermanent(_appendToUri(redirect_uri, "error=unsupported_response_type"));
+            if (User == null || User.FindFirstValue(ClaimTypes.NameIdentifier) == null) return RedirectToAction("Login", new { redirect = Request.Path.Value + Request.QueryString });
+
+            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
+            var actors = await _context.UserActorPermissions.Where(a => a.User == user).Include(a => a.Actor).ToListAsync();
+
+            return View("ChooseActorOAuth", new OAuthActorModel { User = user, Actors = actors, ResponseType = response_type, RedirectUri = redirect_uri, State = state });
+        }
+
+        [HttpPost("oauth"), ValidateAntiForgeryToken]
+        public async Task<IActionResult> DoChooseActorOAuth(OAuthChosenActorModel model)
+        {
+            if (!ModelState.IsValid) return View("ChooseActorOAuth", model);
+
+            var claims = new Claim[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+                new Claim(JwtTokenSettings.ActorClaim, model.ActorID)
+            };
+            
+            var jwt = new JwtSecurityToken(
+                issuer: _tokenSettings.Issuer,
+                audience: _tokenSettings.Audience,
+                claims: claims,
+                notBefore: DateTime.UtcNow,
+                expires: DateTime.UtcNow.Add(_tokenSettings.ExpiryTime),
+                signingCredentials: _tokenSettings.Credentials
+                );
+
+            var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
+
+            if (model.ResponseType == "token")
+            {
+                if (model.RedirectUri.Contains("#"))
+                    return RedirectPermanent(model.RedirectUri + $"&access_token={encodedJwt}&token_type=bearer&expires_in={(int) _tokenSettings.ExpiryTime.TotalSeconds}&state={model.State}");
+                else
+                    return RedirectPermanent(model.RedirectUri + $"#access_token={encodedJwt}&token_type=bearer&expires_in={(int) _tokenSettings.ExpiryTime.TotalSeconds}&state={model.State}");
+            }
+            else if (model.ResponseType == "code")
+            {
+                encodedJwt = _dataProtector.Protect(encodedJwt);
+
+                return RedirectPermanent(_appendToUri(model.RedirectUri, $"code={Uri.EscapeDataString(encodedJwt)}&state={model.State}"));
+            }
+
+            return StatusCode(500);
+        }
+
+        public class OAuthTokenModel
+        {
+            public string grant_type { get; set; }
+            public string code { get; set; }
+            public string redirect_uri { get; set; }
+            public string client_id { get; set; }
+        }
+
+        public class JsonError {
+            public string error { get; set; }
+        }
+
+        public class JsonResponse
+        {
+            public string access_token { get; set; }
+            public string token_type { get; set; }
+            public int expires_in { get; set; }
+        }
+
+        [HttpPost("token")]
+        public async Task<IActionResult> OAuthToken(OAuthTokenModel model)
+        {
+            if (model.grant_type != "authorization_code") return Json(new JsonError { error = "invalid_request" });
+            try
+            {
+                var decrypted = _dataProtector.Unprotect(model.code);
+                return Json(new JsonResponse {
+                    access_token = decrypted,
+                    expires_in = (int) _tokenSettings.ExpiryTime.TotalSeconds,
+                    token_type = "bearer"
+                });
+            }
+            catch (CryptographicException)
+            {
+                return Json(new JsonError { error = "invalid_request" });
+            }
         }
 
         private async Task<APEntity> _newCollection(string type, string attributedTo, string @base = "api/entity/")

@@ -379,8 +379,21 @@ namespace Kroeg.Server.Middleware
                 var entity = await store.GetEntity(url, true);
                 if (entity == null) return null;
                 if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, fromId);
-
+                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
                 return entity.Data;
+            }
+
+            private ASObject _getActor(APEntity entity)
+            {
+                var data = entity.Data;
+
+                var endpoints = new ASObject();
+                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(_entityData.BaseUri + "/auth/oauth"));
+                endpoints.Replace("oauthTokenEndpoint", new ASTerm(_entityData.BaseUri + "/auth/token"));
+                endpoints.Replace("id", new ASTerm((string) null));
+
+                data.Replace("endpoints", new ASTerm(endpoints));
+                return data;
             }
 
             private async Task<ASObject> _getCollection(APEntity entity, int? fromId)
