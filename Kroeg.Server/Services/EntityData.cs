@@ -108,20 +108,22 @@ namespace Kroeg.Server.Tools
             return result.ToString();
         }
 
-        public string UriFor(ASObject @object)
+        public string UriFor(ASObject @object, string category = null, string parentId = null)
         {
             var types = @object["type"].Select(a => (string)a.Primitive).ToList();
-            var category = "object";
 
-            if (@object["actor"].Any())
-                category = "activity";
-            else if (types.Any(a => Actors.Contains(a)))
-            {
-                category = "actor";
-            }
+            if (category == null)
+                if (@object["actor"].Any())
+                    category = "activity";
+                else if (types.Any(a => Actors.Contains(a)))
+                    category = "actor";
+                else
+                    category = "object";
 
             var format = _getFormat(types, category);
             var result = _parseUriFormat(@object.Serialize(), format);
+            if (parentId != null && result.StartsWith("+"))
+                return parentId + "/" + result.Substring(1);
 
             return BaseUri + result.ToLower(); 
         }

@@ -218,12 +218,12 @@ namespace Kroeg.Server.Controllers
             }
         }
 
-        private async Task<APEntity> _newCollection(string type, string attributedTo, string @base = "api/entity/")
+        private async Task<APEntity> _newCollection(string type, string attributedTo)
         {
             var obj = new ASObject();
             obj["type"].Add(new ASTerm("OrderedCollection"));
             obj["attributedTo"].Add(new ASTerm(attributedTo));
-            obj.Replace("id", new ASTerm(_entityConfiguration.BaseUri + @base));
+            obj.Replace("id", new ASTerm(_entityConfiguration.UriFor(obj, type, attributedTo)));
             var entity = APEntity.From(obj, true);
             entity.Type = type;
             entity = await _entityStore.StoreEntity(entity);
@@ -257,28 +257,28 @@ namespace Kroeg.Server.Controllers
 
             var user = model.Username;
 
-            var id = _entityConfiguration.BaseUri + "users/" + user;
-
-            var inbox = await _newCollection("_inbox", id, "users/inbox/" + user);
-            var outbox = await _newCollection("_outbox", id, "users/outbox/" + user);
-
-            var following = await _newCollection("_following", id, "users/following/" + user);
-            var followers = await _newCollection("_followers", id, "users/followers/" + user);
-            var likes = await _newCollection("_likes", id, "users/likes/" + user);
-
             var obj = new ASObject();
             obj["type"].Add(new ASTerm("Person"));
-            obj["following"].Add(new ASTerm(following.Id));
-            obj["followers"].Add(new ASTerm(followers.Id));
-            obj["likes"].Add(new ASTerm(likes.Id));
-            obj["inbox"].Add(new ASTerm(inbox.Id));
-            obj["outbox"].Add(new ASTerm(outbox.Id));
             obj["preferredUsername"].Add(new ASTerm(user));
             obj["name"].Add(new ASTerm(string.IsNullOrWhiteSpace(model.Name) ? "Unnamed" : model.Name));
             if (!string.IsNullOrWhiteSpace(model.Summary))
                 obj["summary"].Add(new ASTerm(model.Summary));
 
+            var id = _entityConfiguration.UriFor(obj);
             obj["id"].Add(new ASTerm(id));
+
+            var inbox = await _newCollection("inbox", id);
+            var outbox = await _newCollection("outbox", id);
+            var following = await _newCollection("following", id);
+            var followers = await _newCollection("followers", id);
+            var likes = await _newCollection("likes", id);
+
+            obj["following"].Add(new ASTerm(following.Id));
+            obj["followers"].Add(new ASTerm(followers.Id));
+            obj["likes"].Add(new ASTerm(likes.Id));
+            obj["inbox"].Add(new ASTerm(inbox.Id));
+            obj["outbox"].Add(new ASTerm(outbox.Id));
+
 
             var userEntity = await _entityStore.StoreEntity(APEntity.From(obj, true));
             await _entityStore.CommitChanges();
