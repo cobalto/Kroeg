@@ -66,13 +66,13 @@ namespace Kroeg.Server.Services
             await RemoveFromCollection(collection, entity.Id);
         }
 
-        public APEntity NewCollection(ASObject mold = null, string type = null)
+        public APEntity NewCollection(ASObject mold = null, string type = null, string superItem = null)
         {
             if (mold == null) mold = new ASObject();
             mold["type"].Add(new ASTerm("OrderedCollection"));
             var owner = mold["id"].Count < 1;
             if (owner)
-                mold["id"].Add(new ASTerm(_configuration.UriFor(mold)));
+                mold["id"].Add(new ASTerm(_configuration.UriFor(mold, type?.Replace("_", "").ToLower(), superItem)));
 
             var entity = new APEntity
             {

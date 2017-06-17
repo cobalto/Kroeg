@@ -35,10 +35,11 @@ namespace Kroeg.Server.Tools
             return @object["type"].Any(a => Actors.Contains((string)a.Primitive));
         }
 
-        private string _getFormat(IEnumerable<string> type, string category)
+        private string _getFormat(IEnumerable<string> type, string category, bool isRelative)
         {
             var firstformatType = type.FirstOrDefault(a => EntityNames[a.ToLower()] != null);
             if (firstformatType != null) return EntityNames[firstformatType.ToLower()];
+            if (isRelative && EntityNames["+" + category] != null) return EntityNames["+" + category];
             if (EntityNames["!" + category] != null) return EntityNames["!" + category];
             return EntityNames["!fallback"];
         }
@@ -120,10 +121,10 @@ namespace Kroeg.Server.Tools
                 else
                     category = "object";
 
-            var format = _getFormat(types, category);
+            var format = _getFormat(types, category, parentId != null);
             var result = _parseUriFormat(@object.Serialize(), format);
             if (parentId != null && result.StartsWith("+"))
-                return parentId + "/" + result.Substring(1);
+                return parentId + "/" + result.Substring(1).ToLower();
 
             return BaseUri + result.ToLower(); 
         }

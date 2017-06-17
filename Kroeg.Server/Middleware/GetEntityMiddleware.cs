@@ -290,7 +290,7 @@ namespace Kroeg.Server.Middleware
                         foreach (var type in _serverToServerHandlers)
                         {
                             var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                                stagingStore, flattened, user, inbox);
+                                stagingStore, flattened, user, inbox, context.User);
                             var handled = await handler.Handle();
                             flattened = handler.MainObject;
                             if (!handled) break;
@@ -349,7 +349,7 @@ namespace Kroeg.Server.Middleware
                         foreach (var type in _clientToServerHandlers)
                         {
                             var handler = (BaseHandler) ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                                stagingStore, flattened, user, outbox);
+                                stagingStore, flattened, user, outbox, context.User);
                             var handled = await handler.Handle();
                             flattened = handler.MainObject;
                             if (!handled) break;

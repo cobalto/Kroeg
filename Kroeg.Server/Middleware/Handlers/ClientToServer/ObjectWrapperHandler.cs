@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
@@ -13,8 +14,8 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
     {
         private readonly EntityData _entityData;
 
-        public ObjectWrapperHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, EntityData entityData)
-            : base(entityStore, mainObject, actor, targetBox)
+        public ObjectWrapperHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, EntityData entityData)
+            : base(entityStore, mainObject, actor, targetBox, user)
         {
             _entityData = entityData;
         }
@@ -33,7 +34,6 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
             createActivity["audience"].AddRange(data["audience"]);
             createActivity["actor"].Add(new ASTerm(Actor.Id));
             createActivity["object"].Add(new ASTerm(MainObject.Id));
-            createActivity["id"].Add(new ASTerm(_entityData.UriFor(createActivity)));
 
             var activityEntity = await EntityStore.StoreEntity(APEntity.From(createActivity, true));
             MainObject = activityEntity;

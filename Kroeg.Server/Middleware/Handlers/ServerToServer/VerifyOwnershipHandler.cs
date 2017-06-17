@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
@@ -9,7 +10,7 @@ namespace Kroeg.Server.Middleware.Handlers.ServerToServer
 {
     public class VerifyOwnershipHandler : BaseHandler
     {
-        public VerifyOwnershipHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox) : base(entityStore, mainObject, actor, targetBox)
+        public VerifyOwnershipHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user) : base(entityStore, mainObject, actor, targetBox, user)
         {
         }
 

@@ -225,7 +225,7 @@ namespace Kroeg.Server.Controllers
             obj["attributedTo"].Add(new ASTerm(attributedTo));
             obj.Replace("id", new ASTerm(_entityConfiguration.UriFor(obj, type, attributedTo)));
             var entity = APEntity.From(obj, true);
-            entity.Type = type;
+            entity.Type = "_" + type;
             entity = await _entityStore.StoreEntity(entity);
             await _entityStore.CommitChanges();
 

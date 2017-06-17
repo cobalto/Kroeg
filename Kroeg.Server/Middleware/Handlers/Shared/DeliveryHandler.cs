@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Security.Claims;
+using System.Threading.Tasks;
 using Kroeg.Server.Models;
 using Kroeg.Server.Services;
 using Kroeg.Server.Services.EntityStore;
@@ -10,7 +11,7 @@ namespace Kroeg.Server.Middleware.Handlers.Shared
         private readonly CollectionTools _collection;
         private readonly DeliveryService _deliveryService;
 
-        public DeliveryHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, CollectionTools collection, DeliveryService deliveryService) : base(entityStore, mainObject, actor, targetBox)
+        public DeliveryHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, CollectionTools collection, DeliveryService deliveryService) : base(entityStore, mainObject, actor, targetBox, user)
         {
             _collection = collection;
             _deliveryService = deliveryService;

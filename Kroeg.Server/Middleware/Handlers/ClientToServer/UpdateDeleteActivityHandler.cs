@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
@@ -15,7 +16,7 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
         private static readonly HashSet<string> UpdateBlacklist = new HashSet<string> { "attributedTo", "created", "id", "deleted", "type" };
         private static readonly HashSet<string> DeleteWhitelist = new HashSet<string> { "id", "type", "created", "updated" };
 
-        public UpdateDeleteActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ActivityService activityService) : base(entityStore, mainObject, actor, targetBox)
+        public UpdateDeleteActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, ActivityService activityService) : base(entityStore, mainObject, actor, targetBox, user)
         {
             _activityService = activityService;
         }

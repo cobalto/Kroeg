@@ -56,14 +56,14 @@ namespace Kroeg.Server.Tools
             "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience"
         };
 
-        private async Task<APEntity> _flatten(ASObject @object, IDictionary<string, APEntity> entities)
+        private async Task<APEntity> _flatten(ASObject @object, IDictionary<string, APEntity> entities, string parentId = null)
         {
 
             var entity = new APEntity();
 
             if (@object["id"].Count == 0)
             {
-                @object["id"].Add(new ASTerm(_configuration.UriFor(@object)));
+                @object["id"].Add(new ASTerm(_configuration.UriFor(@object, null, parentId)));
                 entity.IsOwner = true;
             }
 
@@ -80,7 +80,7 @@ namespace Kroeg.Server.Tools
                     if (value.SubObject == null) continue;
                     if (value.SubObject["id"].Any(a => a.Primitive == null)) continue; // transient object
 
-                    var subObject = await _flatten(value.SubObject, entities);
+                    var subObject = await _flatten(value.SubObject, entities, entity.Id);
 
                     value.Primitive = subObject.Id;
                     value.SubObject = null;
@@ -88,7 +88,7 @@ namespace Kroeg.Server.Tools
             }
 
             entity.Data = @object;
-            entities[(string)@object["id"].First().Primitive] = entity;
+            entities[entity.Id] = entity;
 
             return entity;
         }

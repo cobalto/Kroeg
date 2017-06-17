@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
@@ -14,14 +15,14 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
     {
         private readonly CollectionTools _collection;
 
-        public CreateActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, CollectionTools collection) : base(entityStore, mainObject, actor, targetBox)
+        public CreateActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, CollectionTools collection) : base(entityStore, mainObject, actor, targetBox, user)
         {
             _collection = collection;
         }
 
-        private async Task AddCollection(ASObject entity, string obj, string type)
+        private async Task AddCollection(ASObject entity, string obj, string type, string parent)
         {
-            var collection = _collection.NewCollection(null, type);
+            var collection = _collection.NewCollection(null, type, parent);
             await EntityStore.StoreEntity(collection);
 
             entity.Replace(obj, new ASTerm(collection.Id));
@@ -37,9 +38,9 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
 
             objectData["attributedTo"].AddRange(activityData["actor"]);
 
-            await AddCollection(objectData, "likes", "_likes");
-            await AddCollection(objectData, "shares", "_shares");
-            await AddCollection(objectData, "replies", "_replies");
+            await AddCollection(objectData, "likes", "_likes", objectEntity.Id);
+            await AddCollection(objectData, "shares", "_shares", objectEntity.Id);
+            await AddCollection(objectData, "replies", "_replies", objectEntity.Id);
 
             objectData.Replace("published", new ASTerm(DateTime.Now.ToString("o")));
 
