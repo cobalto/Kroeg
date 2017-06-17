@@ -69,7 +69,8 @@ namespace Kroeg.Server
             services.AddSingleton(new EntityData
             {
                 BaseUri = Configuration.GetSection("Kroeg")["BaseUri"],
-                RewriteRequestScheme = Configuration.GetSection("Kroeg")["RewriteRequestScheme"] == "True"
+                RewriteRequestScheme = Configuration.GetSection("Kroeg")["RewriteRequestScheme"] == "True",
+                EntityNames = Configuration.GetSection("EntityNames")
             });
 
             services.AddSingleton<BackgroundTaskQueuer>();
