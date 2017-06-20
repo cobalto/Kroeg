@@ -25,7 +25,6 @@ namespace Kroeg.Server.Services.EntityStore
             }
             else
             {
-                exists.IsOwner = entity.IsOwner;
                 exists.SerializedData = entity.SerializedData;
                 entity = exists;
             }
