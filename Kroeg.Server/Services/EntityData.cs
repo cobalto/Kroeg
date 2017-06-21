@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using Kroeg.ActivityStreams;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
@@ -44,6 +45,14 @@ namespace Kroeg.Server.Tools
             return EntityNames["!fallback"];
         }
 
+        private static string _generateSlug(string val)
+        {
+            if (val == null) return null;
+            val = Regex.Replace(val, @"[^a-z0-9\s-]", "");
+            val = Regex.Replace(val, @"\s+", " ");
+            return Regex.Replace(val, @"\s", "-");
+        }
+
         private JToken _parse(JObject data, JToken curr, string thing)
         {
             if (thing.StartsWith("$"))
@@ -52,6 +61,8 @@ namespace Kroeg.Server.Tools
                 return curr ?? Guid.NewGuid().ToString();
             if (thing == "lower")
                 return curr?.ToObject<string>()?.ToLower();
+            if (thing == "slug")
+                return _generateSlug(curr?.ToObject<string>());
             if (thing.StartsWith("'"))
                 return curr ?? thing.Substring(1);
 
