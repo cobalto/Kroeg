@@ -275,7 +275,9 @@ namespace Kroeg.Server.OStatusCompat
             else if (verb == "Share") verb = "Announce";
             else if (verb == "Favorite") verb = "Like";
 
+#pragma warning disable 618
             if (!_entityConfiguration.IsActivity(verb)) return null;
+#pragma warning restore 618
 
             ao.Replace("type", new ASTerm(verb));
 

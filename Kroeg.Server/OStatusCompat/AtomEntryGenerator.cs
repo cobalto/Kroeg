@@ -176,7 +176,7 @@ namespace Kroeg.Server.OStatusCompat
         private async Task _buildActivityObject(XElement elem, ASObject ao, string mainActor, bool sub)
         {
             var idval = (string)ao["id"].First().Primitive;
-            if (idval.StartsWith("atom:activity:") || _entityConfiguration.IsActivity((string) ao["type"].First().Primitive))
+            if (_entityConfiguration.IsActivity(ao))
             {
                 await _buildActivity(elem, ao, mainActor);
                 return;

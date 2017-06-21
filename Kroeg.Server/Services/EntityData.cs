@@ -26,9 +26,15 @@ namespace Kroeg.Server.Tools
             "Actor", "Application", "Group", "Organization", "Person", "Service"
         };
 
+        [Obsolete("hardcoded single type")]
         public bool IsActivity(string type)
         {
             return  Activities.Contains(type);
+        }
+
+        public bool IsActivity(ASObject @object)
+        {
+            return @object["actor"].Count > 0;
         }
 
         public bool IsActor(ASObject @object)
