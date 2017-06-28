@@ -93,6 +93,8 @@ namespace Kroeg.Server.Tools
             return entity;
         }
 
+        private static HashSet<string> _avoidFlatteningTypes = new HashSet<string> { "OrderedCollection", "Collection", "_replies", "_likes", "_shares" };
+
         private static async Task<ASObject> _unflatten(IEntityStore store, APEntity entity, int depth, IDictionary<string, APEntity> alreadyMapped)
         {
             if (depth == 0)
@@ -106,13 +108,14 @@ namespace Kroeg.Server.Tools
                 if (!IdHolding.Contains(kv.Key) || MayNotFlatten.Contains(kv.Key)) continue;
                 foreach (var value in kv.Value)
                 {
+                    if (value.SubObject != null) value.SubObject = await _unflatten(store, APEntity.From(value.SubObject), depth - 1, alreadyMapped);
                     if (value.Primitive == null) continue;
                     var id = (string)value.Primitive;
 
                     if (alreadyMapped.ContainsKey(id)) continue;
 
                     var obj = await store.GetEntity(id, false);
-                    if (obj == null) continue;
+                    if (obj == null || _avoidFlatteningTypes.Contains(obj.Type)) continue;
                     value.Primitive = null;
                     value.SubObject = await _unflatten(store, obj, depth - 1, alreadyMapped);
                 }

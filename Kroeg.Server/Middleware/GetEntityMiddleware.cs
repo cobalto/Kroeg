@@ -21,6 +21,7 @@ using Kroeg.Server.Services;
 using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Microsoft.Extensions.DependencyInjection;
+using Kroeg.Server.Middleware.Renderers;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -29,32 +30,39 @@ namespace Kroeg.Server.Middleware
     public class GetEntityMiddleware
     {
         private readonly RequestDelegate _next;
+        private List<IConverterFactory> _converters;
 
         public GetEntityMiddleware(RequestDelegate next)
         {
             _next = next;
+            _converters = new List<IConverterFactory>
+            {
+                new AS2ConverterFactory(),
+                new AtomConverterFactory()
+            };
         }
 
-        private readonly List<string> _accepts = new List<string>
+        public async Task Invoke(HttpContext context, IServiceProvider serviceProvider, EntityData entityData)
         {
-            "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
-            "application/activity+json",
-            "application/atom+xml",
-            "text/html"
-        };
-
-        public async Task Invoke(HttpContext context, APContext acontext, EntityFlattener flattener, DeliveryService audienceHelper, CollectionTools collectionTools, IEntityStore mainStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, IServiceProvider serviceProvider, EntityData entityData)
-        {
-            var handler = new GetEntityHandler(acontext, flattener, mainStore,
-                entryGenerator, serviceProvider, entityData);
+            var handler = ActivatorUtilities.CreateInstance<GetEntityHandler>(serviceProvider);
             if (entityData.RewriteRequestScheme) context.Request.Scheme = "https";
 
             var fullpath = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}";
-            if (fullpath.EndsWith(".atom"))
+            foreach (var converterFactory in _converters)
             {
-                context.Request.Headers.Remove("Accept");
-                context.Request.Headers.Add("Accept", "application/atom+xml");
-                fullpath = fullpath.Remove(fullpath.Length - 5);
+                if (fullpath.EndsWith("." + converterFactory.FileExtension))
+                {
+                    fullpath = fullpath.Substring(0, fullpath.Length - 1 - converterFactory.FileExtension.Length);
+                    context.Request.Headers.Remove("Accept");
+                    context.Request.Headers.Add("Accept", converterFactory.RenderMimeType);
+                    break;
+                }
+            }
+
+            if (context.Request.Headers["Accept"].Contains("text/event-stream"))
+            {
+                await handler.EventStream(context, fullpath);
+                return;
             }
 
             if (context.Request.QueryString.Value == "?hub")
@@ -62,77 +70,59 @@ namespace Kroeg.Server.Middleware
                 context.Items.Add("fullPath", fullpath);
                 context.Request.Path = "/.well-known/hub";
                 context.Request.QueryString = QueryString.Empty;
-            }
-
-            var fromId = context.Request.Query.ContainsKey("from_id") ? (int?)int.Parse(context.Request.Query["from_id"]) : null;
-
-            if (context.Request.Headers["Accept"].Contains("text/event-stream"))
-            {
-                await handler._handleEventStream(context);
+                await _next(context);
                 return;
             }
-            if (context.Request.Method == "HEAD")
-            {
-                if (await mainStore.GetEntity(fullpath, false) != null)
-                {
-                    var allAccepts = context.Request.Headers["Accept"].SelectMany(a => a.Split(new [] { ", " }, StringSplitOptions.RemoveEmptyEntries)).ToList();
-                    var firstAccept = allAccepts.FirstOrDefault(_accepts.Contains);
-                    if (firstAccept != null)
-                        context.Response.ContentType = firstAccept;
-                    if (allAccepts.Contains("*/*") || allAccepts.Contains("text/*"))
-                        context.Response.ContentType = "text/html";
 
-                    context.Response.StatusCode = 200;
-                    await context.Response.WriteAsync("");
-                    return;
+            IConverter readConverter = null;
+            IConverter writeConverter = null;
+            bool needRead = context.Request.Method == "POST";
+
+            foreach (var converterFactory in _converters)
+            {
+                bool worksForWrite = converterFactory.CanParse && Helpers.GetBestMatch(converterFactory.MimeTypes, context.Request.Headers["Accept"]) != null; 
+                bool worksForRead = needRead && converterFactory.CanRender && converterFactory.MimeTypes.Contains(context.Request.ContentType);
+
+                if (worksForRead && worksForWrite && readConverter == null && writeConverter == null)
+                {
+                    readConverter = writeConverter = converterFactory.Build(serviceProvider);
+                    break;
                 }
+
+                if (worksForRead && readConverter == null)
+                    readConverter = converterFactory.Build(serviceProvider);
+
+                if (worksForWrite && writeConverter == null)
+                    writeConverter = converterFactory.Build(serviceProvider);
             }
 
-            if (context.Request.Method == "GET")
+            ASObject data = null;
+            if (readConverter != null)
+                data = await readConverter.Parse(context.Request);
+
+            var arguments = context.Request.Query;
+
+            if (context.Request.Method == "GET" || context.Request.Method == "HEAD")
             {
-                var data = await handler._get(fullpath, fromId);
-                if (data != null)
-                {
-                    await handler._render(context, data, _next);
-                    return;
-                }
+                data = await handler.Get(fullpath, arguments);
+            }
+            else if (context.Request.Method == "POST" && data != null)
+            {
+                data = await handler.Post(context, fullpath, data);
             }
 
-            /* context.Request.ContentType == "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"" ||  */
 
-            else if (context.Request.Method == "POST" && (context.Request.ContentType.Contains("application/ld+json") || (context.Request.QueryString.Value == "?salmon")))
+            if (data != null)
             {
-                var entity = await acontext.Entities.FirstOrDefaultAsync(a => a.Id == fullpath);
-                if (entity == null)
-                {
-                    await _next(context);
-                    return;
-                }
-
-                string jdata;
-                using (var reader = new StreamReader(context.Request.Body))
-                {
-                    jdata = await reader.ReadToEndAsync();
-                }
-                ASObject obj;
-                if (context.Request.QueryString.Value == "?salmon")
-                {
-                    var magicEnvelope = new MagicEnvelope(XDocument.Parse(jdata));
-                    var rawData = magicEnvelope.RawData;
-                    Console.WriteLine(rawData);
-                    obj = await entryParser.Parse(XDocument.Parse(rawData));
-                    var tmp = new StagingEntityStore(mainStore);
-                    var flat = await flattener.FlattenAndStore(tmp, obj);
-                    var asfd = await entryGenerator.Build(flat.Data, tmp);
-                    Console.WriteLine(asfd.ToString());
-                    if (obj == null) return; // ignore
-                }
+                if (writeConverter != null)
+                    await writeConverter.Render(context.Request, context.Response, data);
                 else
                 {
-                    obj = ASObject.Parse(jdata);
+                    context.Request.Path = "/render";
+                    context.Items["object"] = APEntity.From(data);
+                    await _next(context);
                 }
-                var data = await handler._post(context, entity, obj);
-                await handler._renderAsJson(context, data);
+                return;
             }
 
             if (!context.Response.HasStarted)
@@ -161,9 +151,21 @@ namespace Kroeg.Server.Middleware
                 _entityData = entityData;
             }
 
-            internal async Task _handleEventStream(HttpContext context)
+            internal async Task<ASObject> Get(string url, IQueryCollection arguments)
             {
-                var fullpath = $"{context.Request.Scheme}://{context.Request.Host.ToString().Replace("localhost", "home.empw.nl")}{context.Request.Path.ToString()}";
+                var store = _mainStore;
+                if (store is RetrievingEntityStore)
+                    store = ((RetrievingEntityStore)store).Next;
+
+                var entity = await store.GetEntity(url, true);
+                if (entity == null) return null;
+                if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, arguments);
+                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
+                return entity.Data;
+            }
+
+            public async Task EventStream(HttpContext context, string fullpath)
+            {
                 var entity = await _mainStore.GetEntity(fullpath, false);
 
                 if (entity.Type != "_inbox")
@@ -172,81 +174,69 @@ namespace Kroeg.Server.Middleware
                 }
             }
 
-            internal async Task _renderAsJson(HttpContext context, ASObject data)
+            private ASObject _getActor(APEntity entity)
             {
-                var formatted = context.Request.Query.ContainsKey("formatted");
-                var flatten = context.Request.Query.ContainsKey("flat");
+                var data = entity.Data;
 
-                if (context.Request.Method == "GET")
-                {
-                    context.Response.StatusCode = data["type"].Contains(new ASTerm("Tombstone")) ? 410 :  200;
-                }
-                else
-                {
-                    context.Response.StatusCode = 201;
-                    if (data != null)
-                        context.Response.Headers.Add("Location", (string)data["id"].First().Primitive);
-                }
+                var endpoints = new ASObject();
+                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(_entityData.BaseUri + "/auth/oauth"));
+                endpoints.Replace("oauthTokenEndpoint", new ASTerm(_entityData.BaseUri + "/auth/token"));
+                endpoints.Replace("id", new ASTerm((string)null));
 
-                if (data == null)
-                {
-                    await context.Response.WriteAsync("\n");
-                    return;
-                }
-
-                var entity = APEntity.From(data);
-
-                context.Response.ContentType = "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"";
-
-                if (flatten)
-                {
-                    var result = new Dictionary<string, JObject>();
-                    var items = new Dictionary<string, APEntity>();
-                    await _flattener.Unflatten(_mainStore, entity, mapped: items);
-
-                    foreach (var item in items)
-                        result[item.Key] = item.Value.Data.Serialize();
-
-                    await context.Response.WriteAsync(JObject.FromObject(result).ToString(formatted ? Formatting.Indented : Formatting.None));
-                }
-                else
-                    await context.Response.WriteAsync((await _flattener.Unflatten(_mainStore, entity)).Serialize().ToString(formatted ? Formatting.Indented : Formatting.None));
+                data.Replace("endpoints", new ASTerm(endpoints));
+                return data;
             }
 
-            internal async Task _render(HttpContext context, ASObject @object, RequestDelegate next)
+            private async Task<ASObject> _getCollection(APEntity entity, IQueryCollection arguments)
             {
-                if (
-                    (context.Request.Method == "POST" && (context.Request.ContentType == "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"" || context.Request.ContentType == "application/ld+json"))
-                    || (context.Request.Method == "GET" && context.Request.Headers["Accept"].Any(a => a.Contains("application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""))))
+                var from_id = arguments["from_id"].FirstOrDefault();
+                var collection = entity.Data;
+                collection["current"].Add(new ASTerm(entity.Id));
+                collection["totalItems"].Add(new ASTerm(await _context.CollectionItems.CountAsync(a => a.CollectionId == entity.Id)));
+
+                if (from_id != null)
                 {
-                    await _renderAsJson(context, @object);
-                }
-                else if (context.Request.Headers["Accept"].Any(a => a == "application/atom+xml"))
-                {
-                    var parsed = (await _entryGenerator.Build(@object, _mainStore)).ToString();
-                    context.Response.ContentType = "application/atom+xml";
-                    var user = (string) @object["attributedTo"].Concat(@object["actor"]).First().Primitive;
+                    var fromId = int.Parse(from_id);
+                    var items = await _context.CollectionItems.Where(a => a.CollectionItemId < fromId && a.CollectionId == entity.Id).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
+                    var hasItems = items.Any();
+                    var page = new ASObject();
+                    page["type"].Add(new ASTerm("OrderedCollectionPage"));
+                    page["summary"].Add(new ASTerm("A collection"));
+                    page["id"].Add(new ASTerm(entity.Id + "?from_id=" + (hasItems ? fromId : 0)));
+                    page["partOf"].Add(new ASTerm(collection));
+                    if (collection["attributedTo"].Any())
+                        page["attributedTo"].Add(collection["attributedTo"].First());
+                    if (items.Count > 0)
+                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + items.Last().CollectionItemId));
+                    page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
 
-                    var links = new List<string>
-                    {
-                        $"<{user}?hub>; rel=\"hub\"",
-                        $"<{context.Request.Path}{context.Request.QueryString}>; rel=\"self\""
-                    };
-
-                    context.Response.Headers.Add("Link", string.Join(", ", links));
-
-                    await context.Response.WriteAsync("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" + parsed);
+                    return page;
                 }
                 else
                 {
-                    context.Items["object"] = APEntity.From(@object);
-                    context.Request.Path = new PathString("/render");
-                    await next(context);
+                    var items = await _context.CollectionItems.Where(a => a.CollectionId == entity.Id).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
+                    var hasItems = items.Any();
+                    var page = new ASObject();
+                    page["type"].Add(new ASTerm("OrderedCollectionPage"));
+                    page["id"].Add(new ASTerm(entity.Id + "?from_id=" + (hasItems ? items.First().CollectionItemId + 1 : 0)));
+                    page["partOf"].Add(new ASTerm(entity.Id));
+                    if (collection["attributedTo"].Any())
+                        page["attributedTo"].Add(collection["attributedTo"].First());
+                    if (items.Count > 0)
+                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + items.Last().CollectionItemId));
+                    page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
+
+                    collection["first"].Add(new ASTerm(page));
                 }
+
+                return collection;
             }
 
-            internal async Task<ASObject> _post(HttpContext context, APEntity original, ASObject @object)
+            internal async Task<ASObject> Post(HttpContext context, string fullpath, ASObject @object)
             {
+                var original = await _mainStore.GetEntity(fullpath, false);
+                if (!original.IsOwner) return null;
+
                 switch (original.Type)
                 {
                     case "_inbox":
@@ -368,75 +358,6 @@ namespace Kroeg.Server.Middleware
                     await context.Response.WriteAsync(e.Message);
                     return null;
                 }
-            }
-
-            internal async Task<ASObject> _get(string url, int? fromId)
-            {
-                var store = _mainStore;
-                if (store is RetrievingEntityStore)
-                    store = ((RetrievingEntityStore)store).Next;
-
-                var entity = await store.GetEntity(url, true);
-                if (entity == null) return null;
-                if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, fromId);
-                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
-                return entity.Data;
-            }
-
-            private ASObject _getActor(APEntity entity)
-            {
-                var data = entity.Data;
-
-                var endpoints = new ASObject();
-                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(_entityData.BaseUri + "/auth/oauth"));
-                endpoints.Replace("oauthTokenEndpoint", new ASTerm(_entityData.BaseUri + "/auth/token"));
-                endpoints.Replace("id", new ASTerm((string) null));
-
-                data.Replace("endpoints", new ASTerm(endpoints));
-                return data;
-            }
-
-            private async Task<ASObject> _getCollection(APEntity entity, int? fromId)
-            {
-                var collection = entity.Data;
-                collection["current"].Add(new ASTerm(entity.Id));
-                collection["totalItems"].Add(new ASTerm(await _context.CollectionItems.CountAsync(a => a.CollectionId == entity.Id)));
-
-                if (fromId != null)
-                {
-                    var items = await _context.CollectionItems.Where(a => a.CollectionItemId < fromId.Value && a.CollectionId == entity.Id).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
-                    var hasItems = items.Any();
-                    var page = new ASObject();
-                    page["type"].Add(new ASTerm("OrderedCollectionPage"));
-                    page["summary"].Add(new ASTerm("A collection"));
-                    page["id"].Add(new ASTerm(entity.Id + "?from_id=" + (hasItems ? fromId.Value : 0)));
-                    page["partOf"].Add(new ASTerm(collection));
-                    if (collection["attributedTo"].Any())
-                        page["attributedTo"].Add(collection["attributedTo"].First());
-                    if (items.Count > 0)
-                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + items.Last().CollectionItemId));
-                    page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
-
-                    return page;
-                }
-                else
-                {
-                    var items = await _context.CollectionItems.Where(a => a.CollectionId == entity.Id).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
-                    var hasItems = items.Any();
-                    var page = new ASObject();
-                    page["type"].Add(new ASTerm("OrderedCollectionPage"));
-                    page["id"].Add(new ASTerm(entity.Id + "?from_id=" + (hasItems ? items.First().CollectionItemId + 1 : 0)));
-                    page["partOf"].Add(new ASTerm(entity.Id));
-                    if (collection["attributedTo"].Any())
-                        page["attributedTo"].Add(collection["attributedTo"].First());
-                    if (items.Count > 0)
-                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + items.Last().CollectionItemId));
-                    page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
-
-                    collection["first"].Add(new ASTerm(page));
-                }
-
-                return collection;
             }
         }
     }

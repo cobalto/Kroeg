@@ -283,10 +283,10 @@ namespace Kroeg.Server.OStatusCompat
             var verb = (string)ao["type"].First().Primitive;
             if (VerbTranslation.ContainsKey(verb)) verb = VerbTranslation[verb];
 
-            var targetObject = ao["object"].First();
-            if (verb == "Undo")
+            var targetObject = ao["object"].FirstOrDefault();
+            if (verb == "Undo" && targetObject != null)
             {
-                var toUndo = await _get(ao["object"].First().Primitive);
+                var toUndo = await _get(targetObject.Primitive);
                 targetObject = toUndo["object"].First();
                 if ((string)toUndo["type"].First().Primitive == "Like") verb = "Unfavorite";
                 if ((string)toUndo["type"].First().Primitive == "Follow") verb = "Unfollow";
@@ -342,9 +342,11 @@ namespace Kroeg.Server.OStatusCompat
                         new XAttribute(NoNamespace + "href", _makeAtomUrl((string)ao["id"].First().Primitive))));
             }
 
+            if (targetObject == null) return elem;
+
             if (verb == "Post")
             {
-                await _buildActivityObject(elem, await _get(ao["object"].First().Primitive), mainActor, true);
+                await _buildActivityObject(elem, await _get(targetObject.Primitive), mainActor, true);
             }
             else
             {
@@ -436,7 +438,7 @@ namespace Kroeg.Server.OStatusCompat
 
                 elem.Add(new XElement(Atom + "link",
                     new XAttribute(NoNamespace + "rel", "salmon"),
-                    new XAttribute(NoNamespace + "href", inbox + "?salmon")));
+                    new XAttribute(NoNamespace + "href", inbox + ".atom")));
             }
 
             if (ao["_:hubUrl"].Any())

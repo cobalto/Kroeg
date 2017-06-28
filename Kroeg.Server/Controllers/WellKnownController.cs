@@ -172,7 +172,7 @@ namespace Kroeg.Server.Controllers
                     new WebfingerLink
                     {
                         rel = "salmon",
-                        href = inbox + "?salmon"
+                        href = inbox + ".atom"
                     },
 
                     new WebfingerLink

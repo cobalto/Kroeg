@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using System.Linq;
@@ -193,7 +194,7 @@ namespace Kroeg.Server.OStatusCompat
                 var rel = link.Attribute(NoNamespace + "rel").Value;
                 var type = link.Attribute(NoNamespace + "type")?.Value;
                 var href = link.Attribute(NoNamespace + "href").Value;
-
+                
                 if (rel == "self" && type == "application/atom+xml")
                     retrievalUrl = href;
                 else if (rel == "alternate" && type == "text/html")
@@ -254,6 +255,12 @@ namespace Kroeg.Server.OStatusCompat
             return new ASTerm((await _context.Entities.FromSql("SELECT * FROM \"Entities\" WHERE \"SerializedData\" @> {0}::jsonb", JsonConvert.SerializeObject(
                 new RelevantObjectJson { Type = objectType, Object = objectId, Actor = authorId })).FirstOrDefaultAsync())?.Id);
             // how?
+        }
+
+        private string _buildUrl(string baseId, string type)
+        {
+            if (Uri.IsWellFormedUriString(baseId, UriKind.Absolute) && !baseId.StartsWith("tag:")) return baseId;
+            return "atom:" + baseId;
         }
 
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
