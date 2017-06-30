@@ -12,5 +12,7 @@ namespace Kroeg.Server.Models
 
         public string ElementId { get; set; }
         public APEntity Element { get; set; }
+
+        public bool IsPublic { get; set; }
     }
 }

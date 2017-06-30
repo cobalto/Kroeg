@@ -27,6 +27,19 @@ namespace Kroeg.Server.Services
             _store = store;
         }
 
+        public static bool IsPublic(ASObject @object)
+        {
+            var targetIds = new List<string>();
+
+            targetIds.AddRange(@object["to"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["bto"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["cc"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["bcc"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["audience"].Select(a => (string)a.Primitive));
+
+            return targetIds.Contains("https://www.w3.org/ns/activitystreams#Public");
+        }
+
         public async Task QueueDeliveryForEntity(APEntity entity, int collectionId, bool forwardOnly = false)
         {
             var audienceInbox = await _buildAudienceInbox(entity.Data, forward: forwardOnly);
@@ -43,6 +56,19 @@ namespace Kroeg.Server.Services
                 _queueSalmonDelivery(salmon, entity);
 
             await _context.SaveChangesAsync();
+        }
+
+        public HashSet<string> GetAudienceIds(ASObject @object)
+        {
+            var targetIds = new List<string>();
+
+            targetIds.AddRange(@object["to"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["bto"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["cc"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["bcc"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["audience"].Select(a => (string)a.Primitive));
+
+            return new HashSet<string>(targetIds);
         }
 
         private async Task<Tuple<HashSet<string>, bool, HashSet<string>>> _buildAudienceInbox(ASObject @object, int depth = 3, bool forward = false)

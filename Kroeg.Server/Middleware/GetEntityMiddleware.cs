@@ -23,6 +23,7 @@ using Kroeg.Server.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Kroeg.Server.Middleware.Renderers;
 using System.Threading;
+using System.Security.Claims;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -46,7 +47,7 @@ namespace Kroeg.Server.Middleware
 
         public async Task Invoke(HttpContext context, IServiceProvider serviceProvider, EntityData entityData, IEntityStore store)
         {
-            var handler = ActivatorUtilities.CreateInstance<GetEntityHandler>(serviceProvider);
+            var handler = ActivatorUtilities.CreateInstance<GetEntityHandler>(serviceProvider, context.User);
             if (entityData.RewriteRequestScheme) context.Request.Scheme = "https";
 
             var fullpath = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}";
@@ -155,10 +156,12 @@ namespace Kroeg.Server.Middleware
             private readonly AtomEntryGenerator _entryGenerator;
             private readonly IServiceProvider _serviceProvider;
             private readonly EntityData _entityData;
+            private readonly DeliveryService _deliveryService;
+            private readonly ClaimsPrincipal _user;
 
             public GetEntityHandler(APContext acontext, EntityFlattener flattener, IEntityStore mainStore,
-                AtomEntryGenerator entryGenerator, IServiceProvider serviceProvider,
-                EntityData entityData)
+                AtomEntryGenerator entryGenerator, IServiceProvider serviceProvider, DeliveryService deliveryService,
+                EntityData entityData, ClaimsPrincipal user)
             {
                 _context = acontext;
                 _flattener = flattener;
@@ -166,6 +169,8 @@ namespace Kroeg.Server.Middleware
                 _entryGenerator = entryGenerator;
                 _serviceProvider = serviceProvider;
                 _entityData = entityData;
+                _deliveryService = deliveryService;
+                _user = user;
             }
 
             internal async Task<ASObject> Get(string url, IQueryCollection arguments)
@@ -174,10 +179,16 @@ namespace Kroeg.Server.Middleware
                 if (store is RetrievingEntityStore)
                     store = ((RetrievingEntityStore)store).Next;
 
+                var userId = _user.FindFirstValue(JwtTokenSettings.ActorClaim);
                 var entity = await store.GetEntity(url, true);
                 if (entity == null) return null;
                 if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, arguments);
                 if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
+                var audience = _deliveryService.GetAudienceIds(entity.Data);
+
+                if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string) a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
+                    return null; // unauthorized
+
                 return entity.Data;
             }
 
@@ -208,13 +219,15 @@ namespace Kroeg.Server.Middleware
             {
                 var from_id = arguments["from_id"].FirstOrDefault();
                 var collection = entity.Data;
+                bool seePrivate = collection["attributedTo"].Any() && _user.FindFirstValue(JwtTokenSettings.ActorClaim) == (string)collection["attributedTo"].First().Primitive;
+
                 collection["current"].Add(new ASTerm(entity.Id));
-                collection["totalItems"].Add(new ASTerm(await _context.CollectionItems.CountAsync(a => a.CollectionId == entity.Id)));
+                collection["totalItems"].Add(new ASTerm(await _context.CollectionItems.CountAsync(a => a.CollectionId == entity.Id && a.IsPublic || seePrivate)));
 
                 if (from_id != null)
                 {
                     var fromId = int.Parse(from_id);
-                    var items = await _context.CollectionItems.Where(a => a.CollectionItemId < fromId && a.CollectionId == entity.Id).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
+                    var items = await _context.CollectionItems.Where(a => a.CollectionItemId < fromId && a.CollectionId == entity.Id && a.IsPublic || seePrivate).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
                     var hasItems = items.Any();
                     var page = new ASObject();
                     page["type"].Add(new ASTerm("OrderedCollectionPage"));
@@ -231,7 +244,7 @@ namespace Kroeg.Server.Middleware
                 }
                 else
                 {
-                    var items = await _context.CollectionItems.Where(a => a.CollectionId == entity.Id).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
+                    var items = await _context.CollectionItems.Where(a => a.CollectionId == entity.Id && a.IsPublic || seePrivate).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
                     var hasItems = items.Any();
                     var page = new ASObject();
                     page["type"].Add(new ASTerm("OrderedCollectionPage"));
@@ -263,6 +276,7 @@ namespace Kroeg.Server.Middleware
                         if (userId == null || context.User.FindFirst(JwtTokenSettings.ActorClaim).Value ==
                             (string) userId.Primitive) return await _clientToServer(context, original, @object);
                         context.Response.StatusCode = 403;
+                        await context.Response.WriteAsync("what are you trying to do?");
                         return null;
                 }
 

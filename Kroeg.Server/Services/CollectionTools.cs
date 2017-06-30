@@ -46,7 +46,8 @@ namespace Kroeg.Server.Services
             var ci = new CollectionItem
             {
                 Collection = collection,
-                Element = entity
+                Element = entity,
+                IsPublic = DeliveryService.IsPublic(entity.Data)
             };
 
             await _context.CollectionItems.AddAsync(ci);
