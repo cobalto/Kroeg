@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net462</TargetFramework>
+    <TargetFrameworks>netcoreapp1.1;net462</TargetFrameworks>
     <RuntimeIdentifier>win7-x86</RuntimeIdentifier>
     <DebugType>portable</DebugType>
   </PropertyGroup>

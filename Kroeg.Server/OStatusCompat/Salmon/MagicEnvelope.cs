@@ -22,7 +22,7 @@ namespace Kroeg.Server.Salmon
 
         private static string _encodeBase64Url(byte[] data)
         {
-            return Convert.ToBase64String(data, Base64FormattingOptions.None).Replace('+', '-').Replace('/', '_');
+            return Convert.ToBase64String(data).Replace('+', '-').Replace('/', '_');
         }
 
         public MagicEnvelope(XDocument doc)

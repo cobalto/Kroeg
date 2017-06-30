@@ -21,15 +21,55 @@ namespace Kroeg.Server.Salmon
 
         private static string _encodeBase64Url(byte[] data)
         {
-            return Convert.ToBase64String(data, Base64FormattingOptions.None).Replace('+', '-').Replace('/', '_');
+            return Convert.ToBase64String(data).Replace('+', '-').Replace('/', '_');
+        }
+
+        private class RSAKeyParms
+        {
+            public byte[] D;
+            public byte[] DP;
+            public byte[] DQ;
+            public byte[] Exponent;
+            public byte[] InverseQ;
+            public byte[] Modulus;
+            public byte[] P;
+            public byte[] Q;
+
+            public static RSAKeyParms From(RSAParameters parms)
+            {
+                var a = new RSAKeyParms();
+                a.D = parms.D;
+                a.DP = parms.DP;
+                a.DQ = parms.DQ;
+                a.Exponent = parms.Exponent;
+                a.InverseQ = parms.InverseQ;
+                a.Modulus = parms.Modulus;
+                a.P = parms.P;
+                a.Q = parms.Q;
+                return a;
+            }
+
+            public RSAParameters Make()
+            {
+                var a = new RSAParameters();
+                a.D = D;
+                a.DP = DP;
+                a.DQ = DQ;
+                a.Exponent = Exponent;
+                a.InverseQ = InverseQ;
+                a.Modulus = Modulus;
+                a.P = P;
+                a.Q = Q;
+                return a;
+            }
         }
 
         public MagicKey(string key)
         {
-            if (key[0] == '<')
+            if (key[0] == '{')
             {
                 _rsa = RSA.Create();
-                _rsa.FromXmlString(key);
+                _rsa.ImportParameters(JsonConvert.DeserializeObject<RSAKeyParms>(key).Make());
             }
             else
             {
@@ -51,9 +91,9 @@ namespace Kroeg.Server.Salmon
             rsa.KeySize = 2048;
 
             if (rsa.KeySize != 2048)
-                rsa = new RSACng(2048);
+                rsa = new RSACryptoServiceProvider(2048);
 
-            return new MagicKey(rsa.ToXmlString(true));
+            return new MagicKey(JsonConvert.SerializeObject(RSAKeyParms.From(rsa.ExportParameters(true))));
         }
 
         public static async Task<MagicKey> KeyForAuthor(ASObject obj)
@@ -93,7 +133,7 @@ namespace Kroeg.Server.Salmon
 
         public string PrivateKey
         {
-            get { return _rsa.ToXmlString(true); }
+            get { return JsonConvert.SerializeObject(RSAKeyParms.From(_rsa.ExportParameters(true))); }
         }
 
         public string PublicKey
