@@ -152,7 +152,14 @@ namespace Kroeg.Server.OStatusCompat
         private async Task<ASTerm> _parseActivityObject(XElement element, string authorId, string targetUser, bool isActivity = false)
         {
             if (!isActivity && element.Element(ActivityStreams + "verb") != null) return await _parseActivity(element, authorId, targetUser);
-            if (await _isSelf(element.Element(Atom + "id")?.Value)) return new ASTerm(element.Element(Atom + "id")?.Value);
+            var entity = await _entityStore.GetEntity(element.Element(Atom + "id")?.Value, true);
+            if (entity != null)
+            {
+                if (entity.Data["type"].Any(a => (string)a.Primitive == "Create"))
+                    return new ASTerm((string)entity.Data["object"].First().Primitive);
+
+                return new ASTerm(element.Element(Atom + "id")?.Value);
+            }
 
             var ao = new ASObject();
             ao.Replace("id", new ASTerm(element.Element(Atom + "id")?.Value + (isActivity ? "#object" : "")));
@@ -163,6 +170,7 @@ namespace Kroeg.Server.OStatusCompat
                 return new ASTerm(_parseAuthor(element));
 
             ao.Replace("type", new ASTerm(objectType));
+            ao.Replace("attributedTo", new ASTerm(authorId));
 
 
             if (element.Element(Atom + "summary") != null)
@@ -325,15 +333,15 @@ namespace Kroeg.Server.OStatusCompat
             if (element.Element(Atom + "updated") != null)
                 ao.Replace("updated", new ASTerm(element.Element(Atom + "updated").Value));
 
-            if (authorId != null)
-                ao.Replace("actor", new ASTerm(authorId));
-
             if (element.Element(Atom + "author") != null)
             {
                 var newAuthor = _parseAuthor(element.Element(Atom + "author"));
                 authorId = (string)newAuthor["id"].First().Primitive;
-                ao.Replace("actor", new ASTerm(authorId)); // throw away, because I need metadata not in the actor sub-object
             }
+
+            if (authorId != null)
+                ao.Replace("actor", new ASTerm(authorId));
+
 
             string retrievalUrl = null;
 

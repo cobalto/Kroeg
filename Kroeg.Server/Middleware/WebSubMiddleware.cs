@@ -68,7 +68,9 @@ namespace Kroeg.Server.Middleware
             if (mode == "subscribe")
             {
                 obj.Expiry = DateTime.Now + leaseSpan.Value;
-                db.EventQueue.Add(WebSubBackgroundTask.Make(new WebSubBackgroundData { ActorID = user.Id, ToFollowID = obj.TargetUserId }));
+                var task = WebSubBackgroundTask.Make(new WebSubBackgroundData { ActorID = user.Id, ToFollowID = obj.TargetUserId });
+                task.NextAttempt = obj.Expiry;
+                db.EventQueue.Add(task);
                 await db.SaveChangesAsync();
 
                 context.Response.StatusCode = 200;

@@ -11,14 +11,6 @@
 @inject IEntityStore entityStore
 
 @{
-    var published = DateTime.Parse((string) Model.Data["published"].SingleOrDefault()?.Primitive);
-    var publishedText = published.ToString("hh:mm");
-
-    if (published.Date != DateTime.Today)
-    {
-        publishedText = published.ToString("MMM dd");
-    }
-
     var theObject = await entityStore.GetEntity((string) Model.Data["object"].First().Primitive, true);
 }
 

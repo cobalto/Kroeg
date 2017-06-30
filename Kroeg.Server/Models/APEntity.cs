@@ -47,7 +47,8 @@ namespace Kroeg.Server.Models
             {
                 Id = id,
                 Data = @object,
-                Type = type
+                Type = type,
+                IsOwner = isOwner
             };
         }
 

@@ -15,11 +15,21 @@
     var sharesCollection = (string)Model.Data["shares"].FirstOrDefault()?.Primitive;
     var repliesCollection = (string)Model.Data["replies"].FirstOrDefault()?.Primitive;
     var published = DateTime.Parse((string) Model.Data["published"].SingleOrDefault()?.Primitive);
+    var inReplyTo = (string) Model.Data["inReplyTo"].FirstOrDefault()?.Primitive;
     var publishedText = published.ToString("hh:mm");
 
     if (published.Date != DateTime.Today)
     {
         publishedText = published.ToString("MMM dd");
+    }
+}
+
+@if (inReplyTo != null)
+{
+    var data = await entityStore.GetEntity(inReplyTo, false);
+    if (data != null)
+    {
+        @await Html.PartialAsync("Embed/Note", data)
     }
 }
 
@@ -44,7 +54,7 @@
         @if (likesCollection != null)
         {
             var likesCount = await collectionTools.Count(likesCollection);
-            <div class="k-footer-button">@likesCount like@(likesCount != 1 ? "s" : "")</div>
+            <div class="k-footer-button"><a href="@likesCollection">@likesCount like@(likesCount != 1 ? "s" : "")</a></div>
         }
         else
         {

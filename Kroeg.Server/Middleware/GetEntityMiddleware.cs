@@ -51,7 +51,7 @@ namespace Kroeg.Server.Middleware
             var fullpath = $"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}";
             foreach (var converterFactory in _converters)
             {
-                if (fullpath.EndsWith("." + converterFactory.FileExtension))
+                if (converterFactory.FileExtension != null && fullpath.EndsWith("." + converterFactory.FileExtension))
                 {
                     fullpath = fullpath.Substring(0, fullpath.Length - 1 - converterFactory.FileExtension.Length);
                     context.Request.Headers.Remove("Accept");
@@ -82,15 +82,15 @@ namespace Kroeg.Server.Middleware
             if (needRead)
             {
                 var targetEntity = await store.GetEntity(target, false);
-                if (targetEntity.Type == "_inbox")
+                if (targetEntity?.Type == "_inbox")
                     target = (string)targetEntity.Data["attributedTo"].Single().Primitive;
             }
 
 
             foreach (var converterFactory in _converters)
             {
-                bool worksForWrite = converterFactory.CanParse && ConverterHelpers.GetBestMatch(converterFactory.MimeTypes, context.Request.Headers["Accept"]) != null; 
-                bool worksForRead = needRead && converterFactory.CanRender && converterFactory.MimeTypes.Contains(context.Request.ContentType);
+                bool worksForWrite = converterFactory.CanRender && ConverterHelpers.GetBestMatch(converterFactory.MimeTypes, context.Request.Headers["Accept"]) != null; 
+                bool worksForRead = needRead && converterFactory.CanParse && converterFactory.MimeTypes.Contains(context.Request.ContentType);
 
                 if (worksForRead && worksForWrite && readConverter == null && writeConverter == null)
                 {
@@ -127,6 +127,11 @@ namespace Kroeg.Server.Middleware
             {
                 if (writeConverter != null)
                     await writeConverter.Render(context.Request, context.Response, data);
+                else if (context.Request.ContentType == "application/magic-envelope+xml")
+                {
+                    context.Response.StatusCode = 202;
+                    await context.Response.WriteAsync("accepted");
+                }
                 else
                 {
                     context.Request.Path = "/render";
@@ -246,7 +251,7 @@ namespace Kroeg.Server.Middleware
             internal async Task<ASObject> Post(HttpContext context, string fullpath, ASObject @object)
             {
                 var original = await _mainStore.GetEntity(fullpath, false);
-                if (!original.IsOwner) return null;
+                 if (!original.IsOwner) return null;
 
                 switch (original.Type)
                 {
@@ -334,15 +339,17 @@ namespace Kroeg.Server.Middleware
                 var userId = (string) outbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
 
-                if (activity["type"].Any(a => (string) a.Primitive == "Create"))
-                {
-                    activity["id"].Clear();
-                    if (activity["object"].SingleOrDefault()?.SubObject != null)
-                        activity["object"].Single().SubObject["id"].Clear();
-                }
-
                 if (!_entityData.IsActivity(activity))
                 {
+#pragma warning disable CS0618 // Type or member is obsolete
+                    if (_entityData.IsActivity((string) activity["type"].First().Primitive))
+#pragma warning restore CS0618 // Type or member is obsolete
+                    {
+                        context.Response.StatusCode = 403;
+                        await context.Response.WriteAsync("Activity without actor??");
+                        return null;
+                    }
+
                     var createActivity = new ASObject();
                     createActivity["type"].Add(new ASTerm("Create"));
                     createActivity["to"].AddRange(activity["to"]);
@@ -353,6 +360,13 @@ namespace Kroeg.Server.Middleware
                     createActivity["actor"].Add(new ASTerm(userId));
                     createActivity["object"].Add(new ASTerm(activity));
                     activity = createActivity;
+                }
+
+                if (activity["type"].Any(a => (string)a.Primitive == "Create"))
+                {
+                    activity["id"].Clear();
+                    if (activity["object"].SingleOrDefault()?.SubObject != null)
+                        activity["object"].Single().SubObject["id"].Clear();
                 }
 
                 var flattened = await _flattener.FlattenAndStore(stagingStore, activity);

@@ -208,9 +208,10 @@ namespace Kroeg.Server.OStatusCompat
                     elem.Add(new XElement(Atom + "updated", ao["updated"].First().Primitive));
             }
 
-            elem.Add(new XElement(Atom + "content",
-                new XAttribute(NoNamespace + "type", ao["mediaType"].FirstOrDefault()?.Primitive ?? "html"),
-                ao["content"].First().Primitive));
+            if (ao["content"].Any())
+                elem.Add(new XElement(Atom + "content",
+                    new XAttribute(NoNamespace + "type", ao["mediaType"].FirstOrDefault()?.Primitive ?? "html"),
+                    ao["content"].First().Primitive));
 
             if (ao["_:conversation"].Any())
                 elem.Add(new XElement(OStatus + "conversation", new XAttribute(NoNamespace + "ref", ao["_:conversation"].First().Primitive)));
@@ -436,7 +437,7 @@ namespace Kroeg.Server.OStatusCompat
 
                 elem.Add(new XElement(Atom + "link",
                     new XAttribute(NoNamespace + "rel", "salmon"),
-                    new XAttribute(NoNamespace + "href", inbox + ".atom")));
+                    new XAttribute(NoNamespace + "href", inbox)));
             }
 
             if (ao["_:hubUrl"].Any())

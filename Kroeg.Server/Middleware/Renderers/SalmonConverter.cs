@@ -19,7 +19,7 @@ namespace Kroeg.Server.Middleware.Renderers
     public class SalmonConverterFactory : IConverterFactory
     {
         public bool CanParse => true;
-        public string FileExtension => "salmon";
+        public string FileExtension => null;
         public bool CanRender => true;
 
         public List<string> MimeTypes => new List<string> { "application/magic-envelope+xml" };
@@ -70,7 +70,7 @@ namespace Kroeg.Server.Middleware.Renderers
 
             public async Task Render(HttpRequest request, HttpResponse response, ASObject toRender)
             {
-                response.ContentType = ConverterHelpers.GetBestMatch(_factory.MimeTypes, request.Headers["Accept"]);
+                response.ContentType = "application/atom+xml";
 
                 var user = await _entityStore.GetEntity((string) toRender["actor"].Single().Primitive, false);
                 var key = await _context.GetKey(user.Id);
