@@ -12,7 +12,7 @@ namespace Kroeg.Server
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseIISIntegration()
                 .UseStartup<Startup>()
-                .UseUrls("http://0.0.0.0:5000/")
+                .UseUrls(args.Length == 0 ? new string[] {"http://0.0.0.0:5000/" } : args)
                 .Build();
 
             host.Run();
