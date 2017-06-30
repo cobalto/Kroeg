@@ -149,9 +149,9 @@ namespace Kroeg.Server.OStatusCompat
         }
 
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
-        private async Task<ASTerm> _parseActivityObject(XElement element, string authorId, bool isActivity = false)
+        private async Task<ASTerm> _parseActivityObject(XElement element, string authorId, string targetUser, bool isActivity = false)
         {
-            if (!isActivity && element.Element(ActivityStreams + "verb") != null) return await _parseActivity(element, authorId);
+            if (!isActivity && element.Element(ActivityStreams + "verb") != null) return await _parseActivity(element, authorId, targetUser);
             if (await _isSelf(element.Element(Atom + "id")?.Value)) return new ASTerm(element.Element(Atom + "id")?.Value);
 
             var ao = new ASObject();
@@ -283,13 +283,13 @@ namespace Kroeg.Server.OStatusCompat
 
         private async Task<ASTerm> _findRelevantObject(string authorId, string objectType, string objectId)
         {
-            return new ASTerm((await _context.Entities.FromSql("SELECT * FROM \"Entities\" WHERE \"SerializedData\" @> {0}::jsonb", JsonConvert.SerializeObject(
-                new RelevantObjectJson { Type = objectType, Object = objectId, Actor = authorId })).FirstOrDefaultAsync())?.Id);
+            return new ASTerm((await _context.Entities.FromSql("SELECT * FROM \"Entities\" WHERE \"SerializedData\" @> {0}::jsonb ORDER BY \"SerializedData\"->'published'", JsonConvert.SerializeObject(
+                new RelevantObjectJson { Type = objectType, Object = objectId, Actor = authorId })).LastOrDefaultAsync())?.Id);
             // how?
         }
 
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
-        private async Task<ASTerm> _parseActivity(XElement element, string authorId)
+        private async Task<ASTerm> _parseActivity(XElement element, string authorId, string targetUser)
         {
             if (await _isSelf(element.Element(Atom + "id").Value)) return new ASTerm(await _fixActivityToObjectId(element.Element(Atom + "id").Value));
 
@@ -300,7 +300,7 @@ namespace Kroeg.Server.OStatusCompat
             var verb = _objectTypeToType(element.Element(ActivityStreams + "verb")?.Value) ?? "Post";
             var originalVerb = verb;
 
-            if (verb == "Unfollow" && (await _entityStore.GetEntity(element.Element(Atom + "id").Value, false)).Type == "Follow") // egh egh egh, why, mastodon
+            if (verb == "Unfollow" && (await _entityStore.GetEntity(element.Element(Atom + "id").Value, false))?.Type == "Follow") // egh egh egh, why, mastodon
                 ao.Replace("id", new ASTerm((string)ao["id"].First().Primitive + "#unfollow"));
 
             if (verb == "Unfavorite") verb = "Undo";
@@ -331,8 +331,8 @@ namespace Kroeg.Server.OStatusCompat
             if (element.Element(Atom + "author") != null)
             {
                 var newAuthor = _parseAuthor(element.Element(Atom + "author"));
-                ao.Replace("actor", new ASTerm(newAuthor));
                 authorId = (string)newAuthor["id"].First().Primitive;
+                ao.Replace("actor", new ASTerm(authorId)); // throw away, because I need metadata not in the actor sub-object
             }
 
             string retrievalUrl = null;
@@ -365,7 +365,7 @@ namespace Kroeg.Server.OStatusCompat
 
             if (element.Element(ActivityStreams + "object") != null)
             {
-                var parsedActivityObject = await _parseActivityObject(element.Element(ActivityStreams + "object"), authorId);
+                var parsedActivityObject = await _parseActivityObject(element.Element(ActivityStreams + "object"), authorId, targetUser);
 
                 if (verb == "Undo" && originalVerb == "Unfavorite")
                 {
@@ -376,9 +376,18 @@ namespace Kroeg.Server.OStatusCompat
 
                 ao.Replace("object", parsedActivityObject);
             }
+            else if (element.Element(ActivityStreams + "object-type") == null && originalVerb == "Unfollow")
+            {
+                // you thought Mastodon was bad?
+                // GNU Social doesn't send an object in an unfollow.
+
+                // .. what
+
+                ao.Replace("object", await _findRelevantObject(authorId, "Follow", targetUser));
+            }
             else
             {
-                ao.Replace("object", await _parseActivityObject(element, authorId, true));
+                ao.Replace("object", await _parseActivityObject(element, authorId, targetUser, true));
             }
 
             return new ASTerm(ao);
@@ -403,7 +412,7 @@ namespace Kroeg.Server.OStatusCompat
         }
 
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
-        private async Task<ASObject> _parseFeed(XElement element)
+        private async Task<ASObject> _parseFeed(XElement element, string targetUser)
         {
             var ao = new ASObject();
             ao.Replace("type", new ASTerm("OrderedCollectionPage"));
@@ -421,7 +430,7 @@ namespace Kroeg.Server.OStatusCompat
             var authorId = (string) author["id"].First().Primitive;
 
             foreach (var entry in element.Elements(Atom + "entry"))
-                ao["orderedItems"].Add(await _parseActivity(entry, authorId));
+                ao["orderedItems"].Add(await _parseActivity(entry, authorId, targetUser));
 
 
             foreach (var link in element.Elements(Atom + "link"))
@@ -468,11 +477,11 @@ namespace Kroeg.Server.OStatusCompat
             _context = context;
         }
 
-        public async Task<ASObject> Parse(XDocument doc, bool translateSingleActivity)
+        public async Task<ASObject> Parse(XDocument doc, bool translateSingleActivity, string targetUser)
         {
             if (doc.Root?.Name == Atom + "entry")
-                return (await _parseActivity(doc.Root, null)).SubObject;
-            var feed = await _parseFeed(doc.Root);
+                return (await _parseActivity(doc.Root, null, targetUser)).SubObject;
+            var feed = await _parseFeed(doc.Root, targetUser);
             if (feed["orderedItems"].Count == 1 && translateSingleActivity)
                 return feed["orderedItems"].First().SubObject;
             return feed;

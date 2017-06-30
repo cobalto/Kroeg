@@ -26,9 +26,11 @@ namespace Kroeg.Server.Middleware.Renderers
 
         public string RenderMimeType => MimeTypes[0];
 
-        public IConverter Build(IServiceProvider serviceProvider)
+        public IConverter Build(IServiceProvider serviceProvider, string target)
         {
-            return ActivatorUtilities.CreateInstance<SalmonConverter>(serviceProvider, this);
+            var converter = ActivatorUtilities.CreateInstance<SalmonConverter>(serviceProvider, this);
+            converter._targetUser = target;
+            return converter;
         }
 
         private class SalmonConverter : IConverter
@@ -40,6 +42,7 @@ namespace Kroeg.Server.Middleware.Renderers
             private AtomEntryParser _entryParser;
             private AtomEntryGenerator _entryGenerator;
             private APContext _context;
+            internal string _targetUser;
 
             public SalmonConverter(IEntityStore entityStore, EntityFlattener flattener, AtomEntryParser parser, AtomEntryGenerator generator, SalmonConverterFactory factory, APContext context)
             {
@@ -59,9 +62,10 @@ namespace Kroeg.Server.Middleware.Renderers
                     data = await r.ReadToEndAsync();
 
                 var envelope = new MagicEnvelope(XDocument.Parse(data));
-                var entry = await _entryParser.Parse(XDocument.Parse(envelope.RawData), true);
+                Console.WriteLine(envelope.RawData);
+                var entry = await _entryParser.Parse(XDocument.Parse(envelope.RawData), true, _targetUser);
 
-                return await _entryParser.Parse(XDocument.Parse(data), false);
+                return entry;
             }
 
             public async Task Render(HttpRequest request, HttpResponse response, ASObject toRender)

@@ -39,10 +39,13 @@ namespace Kroeg.Server.Services
             foreach (var target in audienceInbox.Item1)
                 _queueInboxDelivery(target, entity);
 
+            foreach (var salmon in audienceInbox.Item3)
+                _queueSalmonDelivery(salmon, entity);
+
             await _context.SaveChangesAsync();
         }
 
-        private async Task<Tuple<HashSet<string>, bool>> _buildAudienceInbox(ASObject @object, int depth = 3, bool forward = false)
+        private async Task<Tuple<HashSet<string>, bool, HashSet<string>>> _buildAudienceInbox(ASObject @object, int depth = 3, bool forward = false)
         {
             var targetIds = new List<string>();
 
@@ -57,6 +60,7 @@ namespace Kroeg.Server.Services
 
             var targets = new HashSet<string>();
             var stack = new Stack<Tuple<int, APEntity>>();
+            var salmons = new HashSet<string>();
             foreach (var item in targetIds)
             {
                 var entity = await _store.GetEntity(item, true);
@@ -76,13 +80,16 @@ namespace Kroeg.Server.Services
                     foreach (var item in await _collectionTools.GetAll(entity.Item2.Id))
                         stack.Push(new Tuple<int, APEntity>(entity.Item1 + 1, item));
                 }
-                else if (_configuration.IsActor(data) && data["inbox"].Any())
+                else if (_configuration.IsActor(data))
                 {
-                    targets.Add((string)data["inbox"].First().Primitive);
+                    if (data["inbox"].Any())
+                        targets.Add((string)data["inbox"].First().Primitive);
+                    else if (data["_:salmonUrl"].Any())
+                        salmons.Add((string)data["_:salmonUrl"].First().Primitive);
                 }
             }
 
-            return new Tuple<HashSet<string>, bool>(targets, isPublic);
+            return new Tuple<HashSet<string>, bool, HashSet<string>>(targets, isPublic, salmons);
         }
 
         private void _queueInboxDelivery(string targetUrl, APEntity entity)
@@ -92,6 +99,16 @@ namespace Kroeg.Server.Services
                 {
                     ObjectId = entity.Id,
                     TargetInbox = targetUrl
+                }));
+        }
+
+        private void _queueSalmonDelivery(string targetUrl, APEntity entity)
+        {
+            _context.EventQueue.Add(
+                DeliverToSalmonTask.Make(new DeliverToSalmonData
+                {
+                    EntityId = entity.Id,
+                    SalmonUrl = targetUrl
                 }));
         }
 

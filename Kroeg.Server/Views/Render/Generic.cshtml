@@ -13,8 +13,8 @@
     {
         var u = new UriBuilder((string) Model.Data["outbox"].First().Primitive);
         u.Path += ".atom";
-        u.Query = "?from_id=" + int.MaxValue.ToString(); // to please the AtomEntryGenerator
-        outbox = u.ToString();
+        u.Query = "from_id=" + int.MaxValue.ToString(); // to please the AtomEntryGenerator
+        outbox = u.ToString().Replace(":443", "");
     }
 }
 

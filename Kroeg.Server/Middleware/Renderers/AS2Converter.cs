@@ -23,7 +23,7 @@ namespace Kroeg.Server.Middleware.Renderers
 
         public string RenderMimeType => MimeTypes[0];
 
-        public IConverter Build(IServiceProvider serviceProvider)
+        public IConverter Build(IServiceProvider serviceProvider, string target)
         {
             return ActivatorUtilities.CreateInstance<AS2Converter>(serviceProvider, this);
         }

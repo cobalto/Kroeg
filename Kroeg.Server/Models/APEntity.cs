@@ -2,6 +2,7 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using Kroeg.ActivityStreams;
+using System;
 
 namespace Kroeg.Server.Models
 {
@@ -14,6 +15,8 @@ namespace Kroeg.Server.Models
         public string SerializedData { get; set; }
 
         public string Type { get; set; }
+
+        public DateTime Updated { get; set; }
 
         public bool IsOwner { get; set; }
 

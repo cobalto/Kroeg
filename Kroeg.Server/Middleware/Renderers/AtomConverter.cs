@@ -32,9 +32,11 @@ namespace Kroeg.Server.Middleware.Renderers
             _isPost = isPost;
         }
 
-        public IConverter Build(IServiceProvider serviceProvider)
+        public IConverter Build(IServiceProvider serviceProvider, string target)
         {
-            return ActivatorUtilities.CreateInstance<AtomConverter>(serviceProvider, this);
+            var converter = ActivatorUtilities.CreateInstance<AtomConverter>(serviceProvider, this);
+            converter._targetUser = target;
+            return converter;
         }
 
         private class AtomConverter : IConverter
@@ -45,15 +47,16 @@ namespace Kroeg.Server.Middleware.Renderers
 
             private AtomEntryParser _entryParser;
             private AtomEntryGenerator _entryGenerator;
+            internal string _targetUser;
 
             public AtomConverter(IEntityStore entityStore, EntityFlattener flattener, AtomEntryParser parser, AtomEntryGenerator generator, AtomConverterFactory factory)
             {
                 _entityStore = entityStore;
                 _flattener = flattener;
+                _factory = factory;
 
                 _entryParser = parser;
                 _entryGenerator = generator;
-                _factory = factory;
             }
 
             public async Task<ASObject> Parse(Stream request)
@@ -62,7 +65,7 @@ namespace Kroeg.Server.Middleware.Renderers
                 using (var r = new StreamReader(request))
                     data = await r.ReadToEndAsync();
 
-                return await _entryParser.Parse(XDocument.Parse(data), _factory._isPost);
+                return await _entryParser.Parse(XDocument.Parse(data), _factory._isPost, _targetUser);
             }
 
             public async Task Render(HttpRequest request, HttpResponse response, ASObject toRender)

@@ -66,7 +66,7 @@ namespace Kroeg.Server.Services.EntityStore
             {
                 if (converter.CanParse && ConverterHelpers.GetBestMatch(converter.MimeTypes, response.Content.Headers.ContentType.MediaType) != null)
                 {
-                    data = await converter.Build(_serviceProvider).Parse(await response.Content.ReadAsStreamAsync());
+                    data = await converter.Build(_serviceProvider, null).Parse(await response.Content.ReadAsStreamAsync());
                     break;
                 }
             }

@@ -43,7 +43,7 @@ namespace Kroeg.Server.Middleware
             };
         }
 
-        public async Task Invoke(HttpContext context, IServiceProvider serviceProvider, EntityData entityData)
+        public async Task Invoke(HttpContext context, IServiceProvider serviceProvider, EntityData entityData, IEntityStore store)
         {
             var handler = ActivatorUtilities.CreateInstance<GetEntityHandler>(serviceProvider);
             if (entityData.RewriteRequestScheme) context.Request.Scheme = "https";
@@ -78,6 +78,14 @@ namespace Kroeg.Server.Middleware
             IConverter readConverter = null;
             IConverter writeConverter = null;
             bool needRead = context.Request.Method == "POST";
+            var target = fullpath;
+            if (needRead)
+            {
+                var targetEntity = await store.GetEntity(target, false);
+                if (targetEntity.Type == "_inbox")
+                    target = (string)targetEntity.Data["attributedTo"].Single().Primitive;
+            }
+
 
             foreach (var converterFactory in _converters)
             {
@@ -86,15 +94,15 @@ namespace Kroeg.Server.Middleware
 
                 if (worksForRead && worksForWrite && readConverter == null && writeConverter == null)
                 {
-                    readConverter = writeConverter = converterFactory.Build(serviceProvider);
+                    readConverter = writeConverter = converterFactory.Build(serviceProvider, target);
                     break;
                 }
 
                 if (worksForRead && readConverter == null)
-                    readConverter = converterFactory.Build(serviceProvider);
+                    readConverter = converterFactory.Build(serviceProvider, target);
 
                 if (worksForWrite && writeConverter == null)
-                    writeConverter = converterFactory.Build(serviceProvider);
+                    writeConverter = converterFactory.Build(serviceProvider, target);
             }
 
             ASObject data = null;

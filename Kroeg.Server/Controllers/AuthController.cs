@@ -310,7 +310,7 @@ namespace Kroeg.Server.Controllers
             var hc = new HttpClient();
             var xd = XDocument.Parse(await hc.GetStringAsync(url));
 
-            var data = await _entryParser.Parse(xd, false);
+            var data = await _entryParser.Parse(xd, false, null);
             return Ok(data.Serialize(true).ToString(Formatting.Indented));
         }
 
@@ -337,7 +337,7 @@ namespace Kroeg.Server.Controllers
             var xd = XDocument.Parse(await hc.GetStringAsync(url));
             var tmpStore = new StagingEntityStore(_entityStore);
 
-            var data = await _entryParser.Parse(xd, false);
+            var data = await _entryParser.Parse(xd, false, null);
             var flattened = await _entityFlattener.FlattenAndStore(tmpStore, data);
             var serialized = (await _entryGenerator.Build(flattened.Data)).ToString();
             return Ok(serialized);

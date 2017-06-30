@@ -19,7 +19,7 @@ namespace Kroeg.Server.Middleware.Renderers
         List<string> MimeTypes { get; }
         string RenderMimeType { get; }
 
-        IConverter Build(IServiceProvider serviceProvider);
+        IConverter Build(IServiceProvider serviceProvider, string user);
     }
 
     public interface IConverter
