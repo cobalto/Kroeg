@@ -137,6 +137,17 @@ namespace Kroeg.Server.OStatusCompat
             return ao;
         }
 
+        private async Task<string> _findInReplyTo(string atomId)
+        {
+            var entity = await _entityStore.GetEntity(atomId, true);
+            if (entity == null) return atomId;
+            if (entity.Data["type"].Any(a => (string) a.Primitive == "Create"))
+            {
+                return (string) entity.Data["object"].Single().Primitive;
+            }
+            return atomId;
+        }
+
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
         private async Task<ASTerm> _parseActivityObject(XElement element, string authorId, bool isActivity = false)
         {
@@ -144,7 +155,8 @@ namespace Kroeg.Server.OStatusCompat
             if (await _isSelf(element.Element(Atom + "id")?.Value)) return new ASTerm(element.Element(Atom + "id")?.Value);
 
             var ao = new ASObject();
-            ao.Replace("id", new ASTerm("atom:object:" + element.Element(Atom + "id")?.Value));
+            ao.Replace("id", new ASTerm(element.Element(Atom + "id")?.Value + (isActivity ? "#object" : "")));
+            ao.Replace("_:origin", new ASTerm("atom"));
 
             var objectType = _objectTypeToType(element.Element(ActivityStreams + "object-type")?.Value);
             if (objectType == "Person")
@@ -170,10 +182,29 @@ namespace Kroeg.Server.OStatusCompat
             }
 
             if (element.Element(OStatus + "conversation") != null)
-                ao.Replace("_:conversation", new ASTerm(element.Element(OStatus + "conversation").Attribute(NoNamespace + "ref").Value));
+                ao.Replace("_:conversation", new ASTerm(element.Element(OStatus + "conversation").Attribute(NoNamespace + "ref")?.Value ?? element.Element(OStatus + "conversation").Value));
 
             if (element.Element(AtomThreading + "in-reply-to") != null)
-                ao.Replace("inReplyTo", new ASTerm("atom:object:" + element.Element(AtomThreading + "in-reply-to").Attribute(NoNamespace + "ref").Value));
+            {
+                var elm = element.Element(AtomThreading + "in-reply-to");
+                var @ref = await _findInReplyTo(elm.Attribute(NoNamespace + "ref").Value);
+                var hrel = elm.Attribute(NoNamespace + "href")?.Value;
+
+                if (hrel == null)
+                    ao.Replace("inReplyTo", new ASTerm(@ref));
+                else if (await _entityStore.GetEntity(@ref, false) != null)
+                {
+                    ao.Replace("inReplyTo", new ASTerm(@ref));
+                }
+                else
+                {
+                    var lazyLoad = new ASObject();
+                    lazyLoad.Replace("id", new ASTerm(@ref));
+                    lazyLoad.Replace("type", new ASTerm("_:LazyLoad"));
+                    lazyLoad.Replace("href", new ASTerm(hrel));
+                    ao.Replace("inReplyTo", new ASTerm(lazyLoad));
+                }
+            }
 
             foreach (var tag in element.Elements(Atom + "category"))
             {
@@ -257,22 +288,20 @@ namespace Kroeg.Server.OStatusCompat
             // how?
         }
 
-        private string _buildUrl(string baseId, string type)
-        {
-            if (Uri.IsWellFormedUriString(baseId, UriKind.Absolute) && !baseId.StartsWith("tag:")) return baseId;
-            return "atom:" + baseId;
-        }
-
         [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
         private async Task<ASTerm> _parseActivity(XElement element, string authorId)
         {
             if (await _isSelf(element.Element(Atom + "id").Value)) return new ASTerm(await _fixActivityToObjectId(element.Element(Atom + "id").Value));
 
             var ao = new ASObject();
-            ao.Replace("id", new ASTerm("atom:activity:" + element.Element(Atom + "id").Value));
+            ao.Replace("id", new ASTerm(element.Element(Atom + "id").Value));
+            ao.Replace("_:origin", new ASTerm("atom"));
 
             var verb = _objectTypeToType(element.Element(ActivityStreams + "verb")?.Value) ?? "Post";
             var originalVerb = verb;
+
+            if (verb == "Unfollow" && (await _entityStore.GetEntity(element.Element(Atom + "id").Value, false)).Type == "Follow") // egh egh egh, why, mastodon
+                ao.Replace("id", new ASTerm((string)ao["id"].First().Primitive + "#unfollow"));
 
             if (verb == "Unfavorite") verb = "Undo";
             if (verb == "Unfollow") verb = "Undo";
@@ -281,6 +310,7 @@ namespace Kroeg.Server.OStatusCompat
             if (verb == "Post") verb = "Create";
             else if (verb == "Share") verb = "Announce";
             else if (verb == "Favorite") verb = "Like";
+
 
 #pragma warning disable 618
             if (!_entityConfiguration.IsActivity(verb)) return null;
@@ -404,6 +434,10 @@ namespace Kroeg.Server.OStatusCompat
                 {
                     ao["url"].Add(new ASTerm(href));
                 }
+                else if (rel == "self" && type == "application/atom+xml")
+                {
+                    author.Replace("_:atomRetrieveUrl", new ASTerm(href));
+                }
                 else switch (rel)
                 {
                     case "salmon":
@@ -421,6 +455,9 @@ namespace Kroeg.Server.OStatusCompat
                 }
             }
 
+            author["_:salmonUrl"].AddRange(ao["_:salmonUrl"]);
+            author["_:hubUrl"].AddRange(ao["_:hubUrl"]);
+
             return ao;
         }
 
@@ -431,11 +468,14 @@ namespace Kroeg.Server.OStatusCompat
             _context = context;
         }
 
-        public async Task<ASObject> Parse(XDocument doc)
+        public async Task<ASObject> Parse(XDocument doc, bool translateSingleActivity)
         {
             if (doc.Root?.Name == Atom + "entry")
                 return (await _parseActivity(doc.Root, null)).SubObject;
-            return await _parseFeed(doc.Root);
+            var feed = await _parseFeed(doc.Root);
+            if (feed["orderedItems"].Count == 1 && translateSingleActivity)
+                return feed["orderedItems"].First().SubObject;
+            return feed;
         }
     }
 }

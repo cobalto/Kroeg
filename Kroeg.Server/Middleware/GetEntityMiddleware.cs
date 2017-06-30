@@ -38,7 +38,7 @@ namespace Kroeg.Server.Middleware
             _converters = new List<IConverterFactory>
             {
                 new AS2ConverterFactory(),
-                new AtomConverterFactory()
+                new AtomConverterFactory(true)
             };
         }
 
@@ -80,7 +80,7 @@ namespace Kroeg.Server.Middleware
 
             foreach (var converterFactory in _converters)
             {
-                bool worksForWrite = converterFactory.CanParse && Helpers.GetBestMatch(converterFactory.MimeTypes, context.Request.Headers["Accept"]) != null; 
+                bool worksForWrite = converterFactory.CanParse && ConverterHelpers.GetBestMatch(converterFactory.MimeTypes, context.Request.Headers["Accept"]) != null; 
                 bool worksForRead = needRead && converterFactory.CanRender && converterFactory.MimeTypes.Contains(context.Request.ContentType);
 
                 if (worksForRead && worksForWrite && readConverter == null && writeConverter == null)
@@ -98,7 +98,7 @@ namespace Kroeg.Server.Middleware
 
             ASObject data = null;
             if (readConverter != null)
-                data = await readConverter.Parse(context.Request);
+                data = await readConverter.Parse(context.Request.Body);
 
             var arguments = context.Request.Query;
 
@@ -111,6 +111,8 @@ namespace Kroeg.Server.Middleware
                 data = await handler.Post(context, fullpath, data);
             }
 
+            if (context.Response.HasStarted)
+                return;
 
             if (data != null)
             {
@@ -313,7 +315,8 @@ namespace Kroeg.Server.Middleware
                 typeof(AddRemoveActivityHandler),
                 typeof(UndoActivityHandler),
                 typeof(UpdateDeleteActivityHandler),
-                typeof(DeliveryHandler)
+                typeof(DeliveryHandler),
+                typeof(WebSubHandler)
             };
 
             private async Task<ASObject> _clientToServer(HttpContext context, APEntity outbox, ASObject activity)
@@ -322,12 +325,25 @@ namespace Kroeg.Server.Middleware
                 var userId = (string) outbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
 
-                var activityType = (string) activity["type"].First().Primitive;
-                if (activityType == "Create" || !_entityData.IsActivity(activityType))
+                if (activity["type"].Any(a => (string) a.Primitive == "Create"))
                 {
                     activity["id"].Clear();
                     if (activity["object"].SingleOrDefault()?.SubObject != null)
                         activity["object"].Single().SubObject["id"].Clear();
+                }
+
+                if (!_entityData.IsActivity(activity))
+                {
+                    var createActivity = new ASObject();
+                    createActivity["type"].Add(new ASTerm("Create"));
+                    createActivity["to"].AddRange(activity["to"]);
+                    createActivity["bto"].AddRange(activity["bto"]);
+                    createActivity["cc"].AddRange(activity["cc"]);
+                    createActivity["bcc"].AddRange(activity["bcc"]);
+                    createActivity["audience"].AddRange(activity["audience"]);
+                    createActivity["actor"].Add(new ASTerm(userId));
+                    createActivity["object"].Add(new ASTerm(activity));
+                    activity = createActivity;
                 }
 
                 var flattened = await _flattener.FlattenAndStore(stagingStore, activity);

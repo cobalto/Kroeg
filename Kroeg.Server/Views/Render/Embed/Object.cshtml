@@ -12,7 +12,7 @@
     var type = (string)Model.Data["type"].First().Primitive;
 }
 
-@if (entityConfiguration.IsActivity(type))
+@if (entityConfiguration.IsActivity(Model.Data))
 {
     @await Html.PartialAsync("Embed/Activity", Model)
 }
@@ -26,6 +26,5 @@ else if (type == "Note")
 }
 else
 {
-    <span>IsOwner: @Model.IsOwner</span>
     <pre>@Model.Data.Serialize().ToString()</pre>
 }

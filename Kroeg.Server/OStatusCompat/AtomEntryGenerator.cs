@@ -188,7 +188,7 @@ namespace Kroeg.Server.OStatusCompat
                     elem.Add(item);
                 return;
             }
-                if (idval.StartsWith("atom:object:")) idval = idval.Substring(14);
+            if (idval.EndsWith("#object") && (string)ao["_:origin"].FirstOrDefault()?.Primitive == "atom") idval = idval.Substring(0, idval.Length - 7);
             if (!sub)
                 elem.Add(new XElement(Atom + "id", idval));
 
@@ -216,7 +216,7 @@ namespace Kroeg.Server.OStatusCompat
                 elem.Add(new XElement(OStatus + "conversation", new XAttribute(NoNamespace + "ref", ao["_:conversation"].First().Primitive)));
 
             if (ao["inReplyTo"].Any())
-                elem.Add(new XElement(AtomThreading + "in-reply-to", new XAttribute(NoNamespace + "ref", (await _fixupPointing(ao["inReplyTo"].First())).Id.Replace("atom:object:", ""))));
+                elem.Add(new XElement(AtomThreading + "in-reply-to", new XAttribute(NoNamespace + "ref", (await _fixupPointing(ao["inReplyTo"].First())).Id)));
 
             foreach (var tag in ao["tag"])
             {
@@ -232,7 +232,7 @@ namespace Kroeg.Server.OStatusCompat
 
             if (!sub)
             {
-                if (((string)ao["id"].First().Primitive).StartsWith("atom:"))
+                if ((string) ao["_:origin"].FirstOrDefault()?.Primitive == "atom" || idval.StartsWith("tag:"))
                     elem.Add(
                         new XElement(Atom + "link",
                         new XAttribute(NoNamespace + "rel", "alternate"),
@@ -246,7 +246,7 @@ namespace Kroeg.Server.OStatusCompat
                             new XAttribute(NoNamespace + "href", ao["id"].First().Primitive)));
             }
 
-            if (!((string) ao["id"].First().Primitive).StartsWith("atom:"))
+            if ((string)ao["_:origin"].FirstOrDefault()?.Primitive != "atom")
                 elem.Add(new XElement(Atom + "link",
                     new XAttribute(NoNamespace + "rel", sub ? "object" : "self"),
                     new XAttribute(NoNamespace + "type",
@@ -265,11 +265,10 @@ namespace Kroeg.Server.OStatusCompat
         private async Task<APEntity> _fixupPointing(ASTerm term)
         {
             var id = (string)term.Primitive;
-            if (id.StartsWith("atom:activity:") || id.StartsWith("atom:object:")) return new APEntity { Id = id.Replace("atom:object:", "atom:activity:") };
             var entity = await _entityStore.GetEntity(id, false);
             if (entity == null) return null;
 
-            if (_entityConfiguration.IsActivity((string)entity.Data["type"].First().Primitive)) return entity;
+            if (_entityConfiguration.IsActivity(entity.Data)) return entity;
 
             var target = await _activityService.DetermineOriginatingCreate(id);
             return target;
@@ -279,7 +278,6 @@ namespace Kroeg.Server.OStatusCompat
         {
             if (isRoot) _setNamespaces(elem);
             var idval = (string) ao["id"].First().Primitive;
-            if (idval.StartsWith("atom:activity:")) idval = idval.Substring(14);
             var verb = (string)ao["type"].First().Primitive;
             if (VerbTranslation.ContainsKey(verb)) verb = VerbTranslation[verb];
 
@@ -311,7 +309,7 @@ namespace Kroeg.Server.OStatusCompat
 
             var self = (string) ao["_:atomRetrieveUrl"].Concat(ao["id"]).First().Primitive;
 
-            if (((string)ao["id"].First().Primitive).StartsWith("atom:"))
+            if ((string)ao["_:origin"].FirstOrDefault()?.Primitive == "atom")
             {
                 // if no direct link to the activity (only a sublink), don't make self
                 if (ao["url"].Any() && self != (string)ao["url"].First().Primitive)

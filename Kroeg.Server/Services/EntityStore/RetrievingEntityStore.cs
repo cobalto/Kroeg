@@ -3,6 +3,11 @@ using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
 using Kroeg.Server.Tools;
+using Kroeg.Server.Middleware.Renderers;
+using System.Collections.Generic;
+using System;
+using System.Linq;
+using System.Xml.Linq;
 
 namespace Kroeg.Server.Services.EntityStore
 {
@@ -11,11 +16,13 @@ namespace Kroeg.Server.Services.EntityStore
         public IEntityStore Next { get; }
 
         private readonly EntityFlattener _entityFlattener;
+        private readonly IServiceProvider _serviceProvider;
 
-        public RetrievingEntityStore(IEntityStore next, EntityFlattener entityFlattener)
+        public RetrievingEntityStore(IEntityStore next, EntityFlattener entityFlattener, IServiceProvider serviceProvider)
         {
             Next = next;
             _entityFlattener = entityFlattener;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<APEntity> GetEntity(string id, bool doRemote)
@@ -33,13 +40,72 @@ namespace Kroeg.Server.Services.EntityStore
             APEntity entity = null;
             if (Next != null) entity = await Next.GetEntity(id, doRemote);
 
-            if (entity != null || !doRemote) return entity;
+            if (entity?.Type == "_:LazyLoad" && !doRemote) return null;
+            if ((entity != null && entity.Type != "_:LazyLoad") || !doRemote) return entity;
+
+            var loadUrl = id;
+
+            if (entity?.Type == "_:LazyLoad")
+                loadUrl = (string) entity.Data["href"].First().Primitive;
+
+            if (loadUrl.StartsWith("tag:")) return null;
 
             var htc = new HttpClient();
-            htc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/activity+json");
+            htc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/atom+xml, text/html");
+            var response = await htc.GetAsync(loadUrl);
 
-            var @object = ASObject.Parse(await htc.GetStringAsync(id));
-            await _entityFlattener.FlattenAndStore(Next, @object);
+            if (!response.IsSuccessStatusCode)
+            {
+                response = await htc.GetAsync(loadUrl + ".atom"); // hack!
+                if (!response.IsSuccessStatusCode) return null;
+            }
+            var converters = new List<IConverterFactory> { new AS2ConverterFactory(), new AtomConverterFactory(false) };
+            tryAgain:
+            ASObject data = null;
+            foreach (var converter in converters)
+            {
+                if (converter.CanParse && ConverterHelpers.GetBestMatch(converter.MimeTypes, response.Content.Headers.ContentType.MediaType) != null)
+                {
+                    data = await converter.Build(_serviceProvider).Parse(await response.Content.ReadAsStreamAsync());
+                    break;
+                }
+            }
+
+            if (data == null)
+            {
+                if (response.Headers.Contains("Link"))
+                {
+                    var split = string.Join(", ", response.Headers.GetValues("Link")).Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (var spl in split)
+                    {
+                        var args = spl.Split(';').Select(a => a.Trim()).ToArray();
+                        if (args.Contains("rel=\"alternate\"") && args.Contains("type=\"application/atom+xml\""))
+                        {
+                            response = await htc.GetAsync(args[0].Substring(1, args[0].Length - 2));
+                            goto tryAgain;
+                        }
+                    }
+                }
+
+                try
+                {
+                    var links = (await response.Content.ReadAsStringAsync()).Split('\n');
+                    var alt = links.FirstOrDefault(a => a.Contains("application/atom+xml") && a.Contains("alternate"));
+                    if (alt == null) return null;
+                    var l = XDocument.Parse(alt + "</link>").Root;
+                        if (l.Attribute(XNamespace.None + "type")?.Value == "application/atom+xml")
+                        {
+                            response = await htc.GetAsync(l.Attribute(XNamespace.None + "href")?.Value);
+                            goto tryAgain;
+                        }
+                }
+                catch (Exception) { }
+
+                return null;
+            }
+
+            // forces out the old lazy load, if used
+            await _entityFlattener.FlattenAndStore(Next, data);
             await Next.CommitChanges();
 
             return await Next.GetEntity(id, true);

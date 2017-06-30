@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -23,11 +24,11 @@ namespace Kroeg.Server.Middleware.Renderers
 
     public interface IConverter
     {
-        Task<ASObject> Parse(HttpRequest request);
+        Task<ASObject> Parse(Stream data);
         Task Render(HttpRequest request, HttpResponse response, ASObject toRender);
     }
 
-    public static class Helpers
+    public static class ConverterHelpers
     {
         public static string GetBestMatch(List<string> mimeTypes, StringValues stringValues)
         {

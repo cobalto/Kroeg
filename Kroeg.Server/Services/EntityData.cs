@@ -6,6 +6,8 @@ using System.Text.RegularExpressions;
 using Kroeg.ActivityStreams;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json.Linq;
+using System.Threading.Tasks;
+using Kroeg.Server.Services.EntityStore;
 
 namespace Kroeg.Server.Tools
 {
@@ -54,17 +56,27 @@ namespace Kroeg.Server.Tools
         private static string _generateSlug(string val)
         {
             if (val == null) return null;
+            val = val.ToLower().Substring(0, Math.Min(val.Length, 40));
+
             val = Regex.Replace(val, @"[^a-z0-9\s-]", "");
             val = Regex.Replace(val, @"\s+", " ");
             return Regex.Replace(val, @"\s", "-");
         }
 
-        private JToken _parse(JObject data, JToken curr, string thing)
+        private static string _shortGuid() => Guid.NewGuid().ToString().Substring(0, 8);
+
+        private async Task<JToken> _parse(IEntityStore store, JObject data, JToken curr, string thing)
         {
             if (thing.StartsWith("$"))
                 return curr ?? data.SelectToken(thing);
+            if (thing.StartsWith("%"))
+                return curr?.SelectToken(thing.Replace('%', '$'));
+            if (thing == "resolve")
+                return curr == null ? null : (await store?.GetEntity(curr.ToObject<string>(), false))?.Data?.Serialize();
             if (thing == "guid")
                 return curr ?? Guid.NewGuid().ToString();
+            if (thing == "shortguid")
+                return curr ?? _shortGuid();
             if (thing == "lower")
                 return curr?.ToObject<string>()?.ToLower();
             if (thing == "slug")
@@ -77,18 +89,18 @@ namespace Kroeg.Server.Tools
             return curr;
         }
 
-        private string _runCommand(JObject data, IEnumerable<string> args)
+        private async Task<string> _runCommand(IEntityStore store, JObject data, IEnumerable<string> args)
         {
             JToken val = null;
             foreach (var item in args)
             {
-                val = _parse(data, val, item);
+                val = await _parse(store, data, val, item);
             }
 
             return (val ?? "unknown").ToObject<string>();
         }
 
-        private string _parseUriFormat(JObject data, string format)
+        private async Task<string> _parseUriFormat(IEntityStore store, JObject data, string format)
         {
             var result = new StringBuilder();
             var index = 0;
@@ -112,7 +124,7 @@ namespace Kroeg.Server.Tools
                     if (end == -1) throw new Exception("invalid format for URI");
 
                     var contents = format.Substring(nextStart + 2, end - nextStart - 2).Split('|');
-                    result.Append(_runCommand(data, contents));
+                    result.Append(await _runCommand(store, data, contents));
 
                     index = end + 1;
                 }
@@ -126,7 +138,7 @@ namespace Kroeg.Server.Tools
             return result.ToString();
         }
 
-        public string UriFor(ASObject @object, string category = null, string parentId = null)
+        public async Task<string> UriFor(IEntityStore store, ASObject @object, string category = null, string parentId = null)
         {
             var types = @object["type"].Select(a => (string)a.Primitive).ToList();
 
@@ -139,11 +151,31 @@ namespace Kroeg.Server.Tools
                     category = "object";
 
             var format = _getFormat(types, category, parentId != null);
-            var result = _parseUriFormat(@object.Serialize(), format);
+            var result = await _parseUriFormat(store, @object.Serialize(), format);
             if (parentId != null && result.StartsWith("+"))
                 return parentId + "/" + result.Substring(1).ToLower();
 
             return BaseUri + result.ToLower(); 
+        }
+
+        public async Task<string> FindUnusedID(IEntityStore entityStore, ASObject @object, string category = null, string parentId = null)
+        {
+            var types = @object["type"].Select(a => (string)a.Primitive).ToList();
+            var format = _getFormat(types, category, parentId != null);
+
+            string uri = await UriFor(entityStore, @object, category, parentId);
+            if (format.Contains("guid")) // is GUID-based, can just regenerate
+            {
+                while (await entityStore.GetEntity(uri, false) != null) uri = await UriFor(entityStore, @object, category, parentId);                
+            }
+            else if (await entityStore.GetEntity(uri, false) != null)
+            {
+                string shortGuid = _shortGuid();
+                while (await entityStore.GetEntity($"{uri}-{shortGuid}", false) != null) shortGuid = _shortGuid();
+                return $"{uri}-{shortGuid}";
+            }
+
+            return uri;
         }
     }
 }

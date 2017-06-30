@@ -22,7 +22,7 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
 
         public override async Task<bool> Handle()
         {
-            if (_entityData.IsActivity(MainObject.Type)) return true;
+            if (_entityData.IsActivity(MainObject.Data)) return true;
             var data = MainObject.Data;
 
             var createActivity = new ASObject();
@@ -34,6 +34,7 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
             createActivity["audience"].AddRange(data["audience"]);
             createActivity["actor"].Add(new ASTerm(Actor.Id));
             createActivity["object"].Add(new ASTerm(MainObject.Id));
+            createActivity["id"].Add(new ASTerm(await _entityData.FindUnusedID(EntityStore, createActivity)));
 
             var activityEntity = await EntityStore.StoreEntity(APEntity.From(createActivity, true));
             MainObject = activityEntity;

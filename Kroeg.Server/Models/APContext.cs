@@ -35,5 +35,6 @@ namespace Kroeg.Server.Models
 
         public DbSet<SalmonKey> SalmonKeys { get; set; }
         public DbSet<WebsubSubscription> WebsubSubscriptions { get; set; }
+        public DbSet<WebSubClient> WebSubClients { get; set; }
     }
 }

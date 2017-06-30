@@ -18,6 +18,7 @@ using Kroeg.Server.Tools;
 using Newtonsoft.Json;
 using Microsoft.AspNetCore.DataProtection;
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authorization;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -223,7 +224,7 @@ namespace Kroeg.Server.Controllers
             var obj = new ASObject();
             obj["type"].Add(new ASTerm("OrderedCollection"));
             obj["attributedTo"].Add(new ASTerm(attributedTo));
-            obj.Replace("id", new ASTerm(_entityConfiguration.UriFor(obj, type, attributedTo)));
+            obj.Replace("id", new ASTerm(await _entityConfiguration.FindUnusedID(_entityStore, obj, type, attributedTo)));
             var entity = APEntity.From(obj, true);
             entity.Type = "_" + type;
             entity = await _entityStore.StoreEntity(entity);
@@ -264,7 +265,7 @@ namespace Kroeg.Server.Controllers
             if (!string.IsNullOrWhiteSpace(model.Summary))
                 obj["summary"].Add(new ASTerm(model.Summary));
 
-            var id = _entityConfiguration.UriFor(obj);
+            var id = await _entityConfiguration.UriFor(_entityStore, obj);
             obj["id"].Add(new ASTerm(id));
 
             var inbox = await _newCollection("inbox", id);
@@ -301,8 +302,24 @@ namespace Kroeg.Server.Controllers
             var hc = new HttpClient();
             var xd = XDocument.Parse(await hc.GetStringAsync(url));
 
-            var data = await _entryParser.Parse(xd);
+            var data = await _entryParser.Parse(xd, false);
             return Ok(data.Serialize(true).ToString(Formatting.Indented));
+        }
+
+        [HttpGet("get")]
+        public async Task<IActionResult> GetId(string id)
+        {
+            var data = await _entityStore.GetEntity(id, true);
+            var ddata = await _entityFlattener.Unflatten(_entityStore, data, 10);
+            return Ok(ddata.Serialize(true).ToString(Formatting.Indented));
+        }
+
+        [HttpGet("getatom")]
+        public async Task<IActionResult> GetIdAtom(string id)
+        {
+            var data = await _entityStore.GetEntity(id, true);
+            var ser = await _entryGenerator.Build(data.Data);
+            return Ok(ser.ToString(SaveOptions.None));
         }
 
         [HttpGet("dtest")]
@@ -312,13 +329,24 @@ namespace Kroeg.Server.Controllers
             var xd = XDocument.Parse(await hc.GetStringAsync(url));
             var tmpStore = new StagingEntityStore(_entityStore);
 
-            var data = await _entryParser.Parse(xd);
+            var data = await _entryParser.Parse(xd, false);
             var flattened = await _entityFlattener.FlattenAndStore(tmpStore, data);
             var serialized = (await _entryGenerator.Build(flattened.Data)).ToString();
             return Ok(serialized);
         }
 
-        [HttpPost("actor"), ValidateAntiForgeryToken]
+        [HttpGet("actor"), Authorize]
+        public async Task<IActionResult> ChooseActor()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier).Value;
+
+            var userObj = await _context.Users.FirstAsync(a => a.Id == userId);
+            var actors = await _context.UserActorPermissions.Where(a => a.User == userObj).Include(a => a.Actor).ToListAsync();
+
+            return View(new ChooseActorModel { Actors = actors, User = userObj });
+        }
+
+        [HttpPost("actor"), ValidateAntiForgeryToken, Authorize]
         public async Task<IActionResult> DoChooseActor(ChosenActorModel model)
         {
             var claims = new Claim[]

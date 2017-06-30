@@ -19,7 +19,7 @@ namespace Kroeg.Server.Tools
         public async Task<APEntity> FlattenAndStore(IEntityStore store, ASObject @object, Dictionary<string, APEntity> dict = null)
         {
             dict = dict ?? new Dictionary<string, APEntity>();
-            var main = await Flatten(@object, dict);
+            var main = await Flatten(store, @object, dict);
 
             foreach (var entity in dict.ToArray())
                 dict[entity.Key] = await store.StoreEntity(entity.Value);
@@ -27,12 +27,12 @@ namespace Kroeg.Server.Tools
             return dict[main.Id];
         }
 
-        public async Task<APEntity> Flatten(ASObject @object, Dictionary<string, APEntity> flattened = null)
+        public async Task<APEntity> Flatten(IEntityStore store, ASObject @object, Dictionary<string, APEntity> flattened = null)
         {
             if (flattened == null)
                 flattened = new Dictionary<string, APEntity>();
 
-            var mainEntity = await _flatten(@object, flattened);
+            var mainEntity = await _flatten(store, @object, flattened);
 
             return flattened[mainEntity.Id];
         }
@@ -56,20 +56,20 @@ namespace Kroeg.Server.Tools
             "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience"
         };
 
-        private async Task<APEntity> _flatten(ASObject @object, IDictionary<string, APEntity> entities, string parentId = null)
+        private async Task<APEntity> _flatten(IEntityStore store, ASObject @object, IDictionary<string, APEntity> entities, string parentId = null)
         {
 
             var entity = new APEntity();
 
             if (@object["id"].Count == 0)
             {
-                @object["id"].Add(new ASTerm(_configuration.UriFor(@object, null, parentId)));
+                @object["id"].Add(new ASTerm(await _configuration.FindUnusedID(store, @object, null, parentId)));
                 entity.IsOwner = true;
             }
 
             entity.Id = (string) @object["id"].First().Primitive;
             var t = (string)@object["type"].FirstOrDefault()?.Primitive;
-            if (t?.StartsWith("_") != false) t = "Unknown";
+            if (t?.StartsWith("_") != false && t?.StartsWith("_:") != true) t = "Unknown";
             entity.Type = t;
 
             foreach (var kv in @object)
@@ -80,7 +80,7 @@ namespace Kroeg.Server.Tools
                     if (value.SubObject == null) continue;
                     if (value.SubObject["id"].Any(a => a.Primitive == null)) continue; // transient object
 
-                    var subObject = await _flatten(value.SubObject, entities, entity.Id);
+                    var subObject = await _flatten(store, value.SubObject, entities, entity.Id);
 
                     value.Primitive = subObject.Id;
                     value.SubObject = null;
@@ -93,7 +93,7 @@ namespace Kroeg.Server.Tools
             return entity;
         }
 
-        private static HashSet<string> _avoidFlatteningTypes = new HashSet<string> { "OrderedCollection", "Collection", "_replies", "_likes", "_shares" };
+        private static HashSet<string> _avoidFlatteningTypes = new HashSet<string> { "OrderedCollection", "Collection", "_replies", "_likes", "_shares", "_:LazyLoad" };
 
         private static async Task<ASObject> _unflatten(IEntityStore store, APEntity entity, int depth, IDictionary<string, APEntity> alreadyMapped)
         {
@@ -101,7 +101,9 @@ namespace Kroeg.Server.Tools
                 return entity.Data;
 
             var @object = entity.Data;
-            alreadyMapped[(string)@object["id"].First().Primitive] = entity;
+            var myid = (string)@object["id"].First().Primitive;
+            if (myid != null)
+                alreadyMapped[myid] = entity;
 
             foreach (var kv in @object)
             {

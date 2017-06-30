@@ -86,7 +86,7 @@ namespace Kroeg.Server
             {
                 var dbservice = provider.GetRequiredService<DatabaseEntityStore>();
                 var flattener = provider.GetRequiredService<EntityFlattener>();
-                return new RetrievingEntityStore(dbservice, flattener);
+                return new RetrievingEntityStore(dbservice, flattener, provider);
             });
         }
 
@@ -103,7 +103,7 @@ namespace Kroeg.Server
             app.UseJwtBearerAuthentication(new JwtBearerOptions
             {
                 AutomaticAuthenticate = true,
-                AutomaticChallenge = true,
+                AutomaticChallenge = false,
                 TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
@@ -120,15 +120,21 @@ namespace Kroeg.Server
                 }
             });
 
+            app.UseCookieAuthentication(new CookieAuthenticationOptions
+            {
+                AutomaticAuthenticate = true,
+                AutomaticChallenge = false
+            });
+
             app.UseStaticFiles();
 
             app.UseDeveloperExceptionPage();
+            app.UseMiddleware<WebSubMiddleware>();
             app.UseMiddleware<GetEntityMiddleware>();
             app.UseMvc();
 
 
-//            app.ApplicationServices.GetRequiredService<APContext>().Database.EnsureDeleted();
-            app.ApplicationServices.GetRequiredService<APContext>().Database.EnsureCreated();
+            app.ApplicationServices.GetRequiredService<APContext>().Database.Migrate();
             app.ApplicationServices.GetRequiredService<BackgroundTaskQueuer>(); // kickstart background tasks!
         }
     }

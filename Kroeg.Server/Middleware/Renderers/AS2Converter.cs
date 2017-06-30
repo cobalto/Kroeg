@@ -41,10 +41,10 @@ namespace Kroeg.Server.Middleware.Renderers
                 _factory = factory;
             }
 
-            public async Task<ASObject> Parse(HttpRequest request)
+            public async Task<ASObject> Parse(Stream request)
             {
                 string data;
-                using (var r = new StreamReader(request.Body))
+                using (var r = new StreamReader(request))
                     data = await r.ReadToEndAsync();
 
                 return ASObject.Parse(data);
@@ -52,7 +52,7 @@ namespace Kroeg.Server.Middleware.Renderers
 
             public async Task Render(HttpRequest request, HttpResponse response, ASObject toRender)
             {
-                response.ContentType = Helpers.GetBestMatch(_factory.MimeTypes, request.Headers["Accept"]);
+                response.ContentType = ConverterHelpers.GetBestMatch(_factory.MimeTypes, request.Headers["Accept"]);
 
                 var depth = Math.Min(int.Parse(request.Query["depth"].FirstOrDefault() ?? "3"), 5);
 

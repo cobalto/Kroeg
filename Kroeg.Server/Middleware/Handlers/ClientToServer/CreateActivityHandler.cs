@@ -22,7 +22,7 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
 
         private async Task AddCollection(ASObject entity, string obj, string type, string parent)
         {
-            var collection = _collection.NewCollection(null, type, parent);
+            var collection = await _collection.NewCollection(EntityStore, null, type, parent);
             await EntityStore.StoreEntity(collection);
 
             entity.Replace(obj, new ASTerm(collection.Id));
