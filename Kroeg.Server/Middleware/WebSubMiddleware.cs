@@ -77,7 +77,7 @@ namespace Kroeg.Server.Middleware
 
             return;
         error:
-            context.Response.StatusCode = 500;
+            context.Response.StatusCode = 404;
             await context.Response.WriteAsync("nah");
         }
     }

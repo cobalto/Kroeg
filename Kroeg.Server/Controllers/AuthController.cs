@@ -19,6 +19,7 @@ using Newtonsoft.Json;
 using Microsoft.AspNetCore.DataProtection;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
+using Kroeg.Server.Salmon;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -287,6 +288,13 @@ namespace Kroeg.Server.Controllers
             var userId = User.FindFirst(ClaimTypes.NameIdentifier).Value;
 
             _context.UserActorPermissions.Add(new UserActorPermission { UserId = userId, ActorId = userEntity.Id, IsAdmin = true });
+
+            var key = new SalmonKey();
+            var salmon = MagicKey.Generate();
+            key.EntityId = userEntity.Id;
+            key.PrivateKey = salmon.PrivateKey;
+
+            _context.SalmonKeys.Add(key);
             await _context.SaveChangesAsync();
 
             var userObj = await _context.Users.FirstAsync(a => a.Id == userId);

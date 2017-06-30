@@ -28,6 +28,23 @@ namespace Kroeg.Server.Models
             return returnValue;
         }
 
+        public async Task<SalmonKey> GetKey(string entityId)
+        {
+            var res = await SalmonKeys.FirstOrDefaultAsync(a => a.EntityId == entityId);
+            if (res != null) return res;
+
+            res = new SalmonKey()
+            {
+                EntityId = entityId,
+                PrivateKey = Salmon.MagicKey.Generate().PrivateKey
+            };
+
+            SalmonKeys.Add(res);
+            await SaveChangesAsync();
+
+            return res;
+        }
+
         public DbSet<APEntity> Entities { get; set; }
         public DbSet<CollectionItem> CollectionItems { get; set; }
         public DbSet<UserActorPermission> UserActorPermissions { get; set; }

@@ -177,18 +177,20 @@ namespace Kroeg.Server.Controllers
 
                     new WebfingerLink
                     {
-                        rel = "magic-public-key",
-                        // just to satisfy Mastodon for now, we don't actually send salmons right now
-                        href = "data:application/magic-public-key,RSA.3Jne_dchpMg9BhQJgYdomcEHwNs_bAFUAjAIz2mEnmMQAn3su3NlyKkENj0kqLLixAT1eRl6WqG0f7N2puNKqeVF_VwiTK5rqOfJNX4JtV2AwreFj2orafTBU1DR35Bth8kd6Vpc9y-1GEveeLs46BxG1LghwjjWmz9itNko9asMpVrQR3vq_BASB4bTrhASdPkvyCZe3DzibsDFXpM8jhmj0nKRxj_m9mllsz-fKYF7VEAdhfjiSi0EJMAaqBABwXyJJGEmI7i6jJW_ilN-9uzOXbE9ozhv7D13Ko6rlEcYA-IXSd6AfVOMX_BgTrVphoV19LtaQwVTc7VUDfMWMQ==.AQAB"
-                    },
-
-                    new WebfingerLink
-                    {
                         rel = "http://ostatus.org/schema/1.0/subscribe",
                         template = item.Id + "?subscribe&user={uri}"
                     }
                 }
             };
+
+            var salmon = await _context.GetKey(item.Id);
+            var magicKey = new Salmon.MagicKey(salmon.PrivateKey);
+
+            result.links.Add(new WebfingerLink
+                {
+                    rel = "magic-public-key",
+                    href = "data:application/magic-public-key," + magicKey.PublicKey
+                });
 
             return Json(result);
         }

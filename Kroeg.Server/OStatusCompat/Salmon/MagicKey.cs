@@ -26,11 +26,10 @@ namespace Kroeg.Server.Salmon
 
         public MagicKey(string key)
         {
-            if (key[0] == '{')
+            if (key[0] == '<')
             {
-                var parms = JsonConvert.DeserializeObject<RSAParameters>(key);
                 _rsa = RSA.Create();
-                _rsa.ImportParameters(parms);
+                _rsa.FromXmlString(key);
             }
             else
             {
@@ -44,6 +43,17 @@ namespace Kroeg.Server.Salmon
                 _rsa = RSA.Create();
                 _rsa.ImportParameters(rsaParams);
             }
+        }
+
+        public static MagicKey Generate()
+        {
+            var rsa = RSA.Create();
+            rsa.KeySize = 2048;
+
+            if (rsa.KeySize != 2048)
+                rsa = new RSACng(2048);
+
+            return new MagicKey(rsa.ToXmlString(true));
         }
 
         public static async Task<MagicKey> KeyForAuthor(ASObject obj)
@@ -83,7 +93,7 @@ namespace Kroeg.Server.Salmon
 
         public string PrivateKey
         {
-            get { return JsonConvert.SerializeObject(_rsa.ExportParameters(true)); }
+            get { return _rsa.ToXmlString(true); }
         }
 
         public string PublicKey
@@ -92,7 +102,7 @@ namespace Kroeg.Server.Salmon
             {
                 var parms = _rsa.ExportParameters(false);
 
-                return string.Join(".", "RSA", _encodeBase64Url(parms.Exponent), _encodeBase64Url(parms.Modulus));
+                return string.Join(".", "RSA", _encodeBase64Url(parms.Modulus), _encodeBase64Url(parms.Exponent));
             }
         }
     }

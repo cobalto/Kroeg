@@ -38,6 +38,7 @@ namespace Kroeg.Server.Middleware
             _converters = new List<IConverterFactory>
             {
                 new AS2ConverterFactory(),
+                new SalmonConverterFactory(),
                 new AtomConverterFactory(true)
             };
         }
