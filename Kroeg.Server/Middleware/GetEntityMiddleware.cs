@@ -22,6 +22,7 @@ using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Kroeg.Server.Middleware.Renderers;
+using System.Threading;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -279,8 +280,12 @@ namespace Kroeg.Server.Middleware
                 typeof(DeliveryHandler)
             };
 
+            private static Semaphore _serverToServerMutex = new Semaphore(1, 1);
+
             private async Task<ASObject> _serverToServer(HttpContext context, APEntity inbox, ASObject activity)
             {
+                _serverToServerMutex.WaitOne();
+
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) inbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
@@ -305,12 +310,15 @@ namespace Kroeg.Server.Middleware
                         await _context.SaveChangesAsync();
 
                         transaction.Commit();
+                        _serverToServerMutex.Release();
 
                         return flattened.Data;
                     }
                 }
                 catch (InvalidOperationException e)
                 {
+                    _serverToServerMutex.Release();
+
                     context.Response.StatusCode = 401;
                     await context.Response.WriteAsync(e.Message);
                     return null;
