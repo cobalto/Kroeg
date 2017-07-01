@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.DataProtection;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Kroeg.Server.Salmon;
+using Microsoft.Extensions.Configuration;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -38,8 +39,9 @@ namespace Kroeg.Server.Controllers
         private readonly AtomEntryGenerator _entryGenerator;
         private readonly EntityData _entityConfiguration;
         private readonly IDataProtector _dataProtector;
+        private readonly IConfigurationRoot _configuration;
 
-        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider)
+        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider, IConfigurationRoot configuration)
         {
             _context = context;
             _userManager = userManager;
@@ -51,6 +53,7 @@ namespace Kroeg.Server.Controllers
             _entryGenerator = entryGenerator;
             _entityConfiguration = entityConfiguration;
             _dataProtector = dataProtectionProvider.CreateProtector("OAuth tokens");
+            _configuration = configuration;
         }
 
         public class LoginViewModel
@@ -107,28 +110,49 @@ namespace Kroeg.Server.Controllers
         public async Task<IActionResult> DoLogin(LoginViewModel model)
         {
             var result = await _signInManager.PasswordSignInAsync(model.Username, model.Password, false, false);
-            if ((await _userManager.FindByNameAsync(model.Username)) == null)
-            {
-                var apUser = new APUser
-                {
-                    UserName = model.Username,
-                    Email = "test@puckipedia.com"
-                };
-
-                await _userManager.CreateAsync(apUser, model.Password);
-                await _signInManager.SignInAsync(apUser, false);
-                result = Microsoft.AspNetCore.Identity.SignInResult.Success;
-            }
 
             if (!result.Succeeded) return View("Login");
             if (!string.IsNullOrEmpty(model.Redirect)) return RedirectPermanent(model.Redirect);
 
-            var user = await _userManager.FindByNameAsync(model.Username);
-            var actors = await _context.UserActorPermissions.Where(a => a.User == user).Include(a => a.Actor).ToListAsync();
-
             return RedirectToActionPermanent("Index", "Settings");
         }
-        
+
+        [HttpGet("register")]
+        public IActionResult Register()
+        {
+            if (!_configuration.GetSection("Kroeg").GetValue<bool>("CanRegister")) return NotFound();
+            return View(new RegisterViewModel { });
+        }
+
+        [HttpPost("register"), ValidateAntiForgeryToken]
+        public async Task<IActionResult> DoREgister(RegisterViewModel model)
+        {
+            if (!_configuration.GetSection("Kroeg").GetValue<bool>("CanRegister")) return NotFound();
+            var apuser = new APUser
+            {
+                UserName = model.Username,
+                Email = model.Email
+            };
+
+            if (model.Password != model.VerifyPassword)
+            {
+                ModelState.AddModelError("", "Passwords don't match!");
+            }
+
+            if (!ModelState.IsValid) return View("Register", model);
+
+            var result = await _userManager.CreateAsync(apuser, model.Password);
+            if (!result.Succeeded)
+            {
+                ModelState.AddModelError("", result.Errors.First().Description);
+            }
+
+            if (!ModelState.IsValid) return View("Register", model);
+
+            await _signInManager.SignInAsync(apuser, false);
+            return RedirectToActionPermanent("Index", "Settings");
+        }
+
         private string _appendToUri(string uri, string query)
         {
             var builder = new UriBuilder(uri);

@@ -89,6 +89,8 @@ namespace Kroeg.Server
 
             services.AddSingleton<BackgroundTaskQueuer>();
 
+            services.AddSingleton(Configuration);
+
             services.AddTransient<EntityFlattener>();
             services.AddTransient<CollectionTools>();
             services.AddTransient<DeliveryService>();

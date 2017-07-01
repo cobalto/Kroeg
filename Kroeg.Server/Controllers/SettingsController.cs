@@ -93,7 +93,7 @@ namespace Kroeg.Server.Controllers
             var tokenHandler = new JwtSecurityTokenHandler();
             SecurityToken validatedToken;
             var claims = tokenHandler.ValidateToken(token, _tokenSettings.ValidationParameters, out validatedToken);
-            if (claims == null || validatedToken.ValidTo < DateTime.Now) return Unauthorized();
+            if (claims == null || validatedToken.ValidTo < DateTime.UtcNow) return Unauthorized();
 
             var userId = claims.FindFirstValue(ClaimTypes.NameIdentifier);
             var user = await _context.Users.FirstOrDefaultAsync(a => a.Id == userId);
