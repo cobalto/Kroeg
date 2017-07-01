@@ -1,0 +1,19 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+}
+@section Header {}
+
+
+@model Kroeg.Server.Controllers.SettingsController.NewActorModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+@await Html.PartialAsync("Menu", Model.Menu)
+
+<form method="post" asp-controller="Settings" asp-action="MakeNewActor">
+    <label asp-for="Username">Username</label><input type="text" asp-for="Username" /><br />
+    <label asp-for="Name">Name</label><input type="text" asp-for="Name" /><br />
+    <label asp-for="Summary">Summary</label><input type="text" asp-for="Summary" /><br />
+    <input type="submit" value="Create new actor" />
+</form>

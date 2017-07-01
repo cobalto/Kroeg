@@ -13,5 +13,7 @@ namespace Kroeg.Server.Configuration
         public TimeSpan ExpiryTime { get; set; }
 
         public static string ActorClaim => "actor";
+
+        public TokenValidationParameters ValidationParameters { get; set; }
     }
 }

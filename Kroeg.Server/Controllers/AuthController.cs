@@ -60,6 +60,15 @@ namespace Kroeg.Server.Controllers
             public string Redirect { get; set; }
         }
 
+        public class RegisterViewModel
+        {
+            public string Username { get; set; }
+            public string Password { get; set; }
+            public string VerifyPassword { get; set; }
+            public string Email { get; set; }
+            public string Redirect { get; set; }
+        }
+
         public class ChooseActorModel
         {
             public APUser User { get; set; }
@@ -117,7 +126,7 @@ namespace Kroeg.Server.Controllers
             var user = await _userManager.FindByNameAsync(model.Username);
             var actors = await _context.UserActorPermissions.Where(a => a.User == user).Include(a => a.Actor).ToListAsync();
 
-            return View("ChooseActor", new ChooseActorModel { User = user, Actors = actors });
+            return RedirectToActionPermanent("Index", "Settings");
         }
         
         private string _appendToUri(string uri, string query)
@@ -218,90 +227,6 @@ namespace Kroeg.Server.Controllers
             {
                 return Json(new JsonError { error = "invalid_request" });
             }
-        }
-
-        private async Task<APEntity> _newCollection(string type, string attributedTo)
-        {
-            var obj = new ASObject();
-            obj["type"].Add(new ASTerm("OrderedCollection"));
-            obj["attributedTo"].Add(new ASTerm(attributedTo));
-            obj.Replace("id", new ASTerm(await _entityConfiguration.FindUnusedID(_entityStore, obj, type, attributedTo)));
-            var entity = APEntity.From(obj, true);
-            entity.Type = "_" + type;
-            entity = await _entityStore.StoreEntity(entity);
-            await _entityStore.CommitChanges();
-
-            return entity;
-        }
-
-        [HttpGet("new")]
-        public IActionResult NewActorGet()
-        {
-            return View("NewActor");
-        }
-
-        public class NewActorModel
-        {
-            public string Username { get; set; }
-            public string Name { get; set; }
-            public string Summary { get; set; }
-        }
-
-        [HttpPost("new")]
-        public async Task<IActionResult> NewActor(NewActorModel model)
-        {
-            if (string.IsNullOrWhiteSpace(model.Username)) return View("NewActor", model);
-            if (await _entityStore.GetEntity(_entityConfiguration.BaseUri + "users/" + model.Username, false) != null)
-            {
-                model.Username = "(in use)";
-                return View("NewActor", model);
-            }
-
-            var user = model.Username;
-
-            var obj = new ASObject();
-            obj["type"].Add(new ASTerm("Person"));
-            obj["preferredUsername"].Add(new ASTerm(user));
-            obj["name"].Add(new ASTerm(string.IsNullOrWhiteSpace(model.Name) ? "Unnamed" : model.Name));
-            if (!string.IsNullOrWhiteSpace(model.Summary))
-                obj["summary"].Add(new ASTerm(model.Summary));
-
-            var id = await _entityConfiguration.UriFor(_entityStore, obj);
-            obj["id"].Add(new ASTerm(id));
-
-            var inbox = await _newCollection("inbox", id);
-            var outbox = await _newCollection("outbox", id);
-            var following = await _newCollection("following", id);
-            var followers = await _newCollection("followers", id);
-            var likes = await _newCollection("likes", id);
-
-            obj["following"].Add(new ASTerm(following.Id));
-            obj["followers"].Add(new ASTerm(followers.Id));
-            obj["likes"].Add(new ASTerm(likes.Id));
-            obj["inbox"].Add(new ASTerm(inbox.Id));
-            obj["outbox"].Add(new ASTerm(outbox.Id));
-
-
-            var userEntity = await _entityStore.StoreEntity(APEntity.From(obj, true));
-            await _entityStore.CommitChanges();
-
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier).Value;
-
-            _context.UserActorPermissions.Add(new UserActorPermission { UserId = userId, ActorId = userEntity.Id, IsAdmin = true });
-
-            var key = new SalmonKey();
-            var salmon = MagicKey.Generate();
-            key.EntityId = userEntity.Id;
-            key.PrivateKey = salmon.PrivateKey;
-
-            _context.SalmonKeys.Add(key);
-            await _context.SaveChangesAsync();
-
-            var userObj = await _context.Users.FirstAsync(a => a.Id == userId);
-            var actors = await _context.UserActorPermissions.Where(a => a.User == userObj).Include(a => a.Actor).ToListAsync();
-
-
-            return View("ChooseActor", new ChooseActorModel { User = userObj, Actors = actors });
         }
 
         [HttpGet("test")]

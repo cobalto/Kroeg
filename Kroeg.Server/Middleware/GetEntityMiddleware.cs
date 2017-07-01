@@ -211,6 +211,7 @@ namespace Kroeg.Server.Middleware
                 var endpoints = new ASObject();
                 endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(_entityData.BaseUri + "/auth/oauth"));
                 endpoints.Replace("oauthTokenEndpoint", new ASTerm(_entityData.BaseUri + "/auth/token"));
+                endpoints.Replace("settingsEndpoint", new ASTerm(_entityData.BaseUri + "/settings/auth"));
                 endpoints.Replace("id", new ASTerm((string)null));
 
                 data.Replace("endpoints", new ASTerm(endpoints));

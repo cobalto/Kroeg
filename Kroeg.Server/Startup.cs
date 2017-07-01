@@ -63,7 +63,21 @@ namespace Kroeg.Server
                 Audience =Configuration.GetSection("Kroeg")["BaseUri"],
                 Issuer = Configuration.GetSection("Kroeg")["BaseUri"],
                 ExpiryTime = TimeSpan.FromDays(30),
-                Credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256)
+                Credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256),
+                ValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = signingKey,
+
+                    ValidateIssuer = true,
+                    ValidIssuer = Configuration.GetSection("Kroeg")["BaseUri"],
+
+                    ValidateAudience = true,
+                    ValidAudience = Configuration.GetSection("Kroeg")["BaseUri"],
+
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero
+                }
             });
 
             services.AddSingleton(new EntityData
@@ -104,20 +118,7 @@ namespace Kroeg.Server
             {
                 AutomaticAuthenticate = true,
                 AutomaticChallenge = false,
-                TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = tokenSettings.Credentials.Key,
-
-                    ValidateIssuer = true,
-                    ValidIssuer = Configuration.GetSection("Kroeg")["BaseUri"],
-
-                    ValidateAudience = true,
-                    ValidAudience = Configuration.GetSection("Kroeg")["BaseUri"],
-
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.Zero
-                }
+                TokenValidationParameters = tokenSettings.ValidationParameters
             });
 
             app.UseCookieAuthentication(new CookieAuthenticationOptions

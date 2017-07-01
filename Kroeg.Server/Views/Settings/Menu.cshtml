@@ -1,0 +1,12 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+}
+
+@model Kroeg.Server.Controllers.SettingsController.BaseModel
+@foreach (var item in Model.Actors)
+{
+    <a href="@Url.Action("Edit", new { id = item.ActorId })">@item.ActorId</a><br/>
+}
+<a href="@Url.Action("NewActor")">New</a>
