@@ -158,10 +158,11 @@ namespace Kroeg.Server.Middleware
             private readonly EntityData _entityData;
             private readonly DeliveryService _deliveryService;
             private readonly ClaimsPrincipal _user;
+            private readonly CollectionTools _collectionTools;
 
             public GetEntityHandler(APContext acontext, EntityFlattener flattener, IEntityStore mainStore,
                 AtomEntryGenerator entryGenerator, IServiceProvider serviceProvider, DeliveryService deliveryService,
-                EntityData entityData, ClaimsPrincipal user)
+                EntityData entityData, ClaimsPrincipal user, CollectionTools collectionTools)
             {
                 _context = acontext;
                 _flattener = flattener;
@@ -171,6 +172,7 @@ namespace Kroeg.Server.Middleware
                 _entityData = entityData;
                 _deliveryService = deliveryService;
                 _user = user;
+                _collectionTools = collectionTools;
             }
 
             internal async Task<ASObject> Get(string url, IQueryCollection arguments)
@@ -184,7 +186,7 @@ namespace Kroeg.Server.Middleware
                 if (entity == null) return null;
                 if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, arguments);
                 if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
-                var audience = _deliveryService.GetAudienceIds(entity.Data);
+                var audience = DeliveryService.GetAudienceIds(entity.Data);
 
                 if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string) a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
                     return null; // unauthorized
@@ -222,12 +224,12 @@ namespace Kroeg.Server.Middleware
                 bool seePrivate = collection["attributedTo"].Any() && _user.FindFirstValue(JwtTokenSettings.ActorClaim) == (string)collection["attributedTo"].First().Primitive;
 
                 collection["current"].Add(new ASTerm(entity.Id));
-                collection["totalItems"].Add(new ASTerm(await _context.CollectionItems.CountAsync(a => a.CollectionId == entity.Id && a.IsPublic || seePrivate)));
+                collection["totalItems"].Add(new ASTerm(await _collectionTools.Count(entity.Id)));
 
                 if (from_id != null)
                 {
                     var fromId = int.Parse(from_id);
-                    var items = await _context.CollectionItems.Where(a => a.CollectionItemId < fromId && a.CollectionId == entity.Id && a.IsPublic || seePrivate).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
+                    var items = await _collectionTools.GetItems(entity.Id, fromId, 10);
                     var hasItems = items.Any();
                     var page = new ASObject();
                     page["type"].Add(new ASTerm("OrderedCollectionPage"));
@@ -237,14 +239,14 @@ namespace Kroeg.Server.Middleware
                     if (collection["attributedTo"].Any())
                         page["attributedTo"].Add(collection["attributedTo"].First());
                     if (items.Count > 0)
-                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + items.Last().CollectionItemId));
+                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + (items.Last().CollectionItemId - 1).ToString()));
                     page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
 
                     return page;
                 }
                 else
                 {
-                    var items = await _context.CollectionItems.Where(a => a.CollectionId == entity.Id && a.IsPublic || seePrivate).OrderByDescending(a => a.CollectionItemId).Take(10).ToListAsync();
+                    var items = await _collectionTools.GetItems(entity.Id, count: 10);
                     var hasItems = items.Any();
                     var page = new ASObject();
                     page["type"].Add(new ASTerm("OrderedCollectionPage"));
@@ -253,7 +255,7 @@ namespace Kroeg.Server.Middleware
                     if (collection["attributedTo"].Any())
                         page["attributedTo"].Add(collection["attributedTo"].First());
                     if (items.Count > 0)
-                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + items.Last().CollectionItemId));
+                        page["next"].Add(new ASTerm(entity.Id + "?from_id=" + (items.Last().CollectionItemId - 1)));
                     page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
 
                     collection["first"].Add(new ASTerm(page));

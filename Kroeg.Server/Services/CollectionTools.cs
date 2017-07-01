@@ -6,6 +6,10 @@ using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
+using System;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+using Kroeg.Server.Configuration;
 
 namespace Kroeg.Server.Services
 {
@@ -14,12 +18,14 @@ namespace Kroeg.Server.Services
         private readonly APContext _context;
         private readonly IEntityStore _entityStore;
         private readonly EntityData _configuration;
+        private readonly IHttpContextAccessor _contextAccessor;
 
-        public CollectionTools(APContext context, IEntityStore entityStore, EntityData configuration)
+        public CollectionTools(APContext context, IEntityStore entityStore, EntityData configuration, IServiceProvider serviceProvider)
         {
             _context = context;
             _entityStore = entityStore;
             _configuration = configuration;
+            _contextAccessor  = (IHttpContextAccessor)serviceProvider.GetService(typeof(IHttpContextAccessor));
         }
 
         public async Task<int> Count(string id)
@@ -35,11 +41,37 @@ namespace Kroeg.Server.Services
             return -1;
         }
 
-        public async Task<List<APEntity>> GetItems(string id, int fromId = int.MaxValue, int count = 10)
-            => await _context.CollectionItems.Where(a => a.CollectionId == id && a.CollectionItemId < fromId).OrderByDescending(a => a.CollectionItemId).Take(count).Include(a => a.Element).Select(a => a.Element).ToListAsync();
+        private string _getUser() => _contextAccessor.HttpContext.User.FindFirstValue(JwtTokenSettings.ActorClaim);
+
+        private static bool _verifyAudience(string user, CollectionItem entity)
+        {
+            if (entity.IsPublic) return true;
+            var audience = DeliveryService.GetAudienceIds(entity.Element.Data);
+            return audience.Contains(user);
+        }
+
+        public async Task<List<CollectionItem>> GetItems(string id, int fromId = int.MaxValue, int count = 10)
+        {
+            IQueryable<CollectionItem> data = _context.CollectionItems.Where(a => a.CollectionId == id && a.CollectionItemId < fromId).OrderByDescending(a => a.CollectionItemId).Include(a => a.Element);
+            var user = _getUser();
+            if (user == null)
+                return await data.Where(a => a.IsPublic).Take(count).ToListAsync();
+            else
+            {
+                return await data.Where((a) => _verifyAudience(user, a)).Take(count).ToListAsync();
+            }
+        }
 
         public async Task<List<APEntity>> GetAll(string id)
-            => await _context.CollectionItems.Include(a => a.Element).OrderByDescending(a => a.CollectionItemId).Select(a => a.Element).ToListAsync();
+        {
+            IQueryable<CollectionItem> list = _context.CollectionItems.Where(a => a.CollectionId == id).Include(a => a.Element).OrderByDescending(a => a.CollectionItemId);
+            var user = _getUser();
+            if (user == null)
+                list = list.Where(a => a.IsPublic);
+
+
+            return await list.Select(a => a.Element).ToListAsync();
+        }
 
         public async Task<CollectionItem> AddToCollection(APEntity collection, APEntity entity)
         {

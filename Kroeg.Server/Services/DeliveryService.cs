@@ -58,7 +58,7 @@ namespace Kroeg.Server.Services
             await _context.SaveChangesAsync();
         }
 
-        public HashSet<string> GetAudienceIds(ASObject @object)
+        public static HashSet<string> GetAudienceIds(ASObject @object)
         {
             var targetIds = new List<string>();
 
