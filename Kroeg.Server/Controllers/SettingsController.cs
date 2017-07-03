@@ -60,8 +60,9 @@ namespace Kroeg.Server.Controllers
         private readonly SignInManager<APUser> _signInManager;
         private readonly IServiceProvider _provider;
         private readonly IConfigurationRoot _configuration;
+        private readonly EntityFlattener _flattener;
 
-        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration)
+        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener)
         {
             _context = context;
             _entityStore = entityStore;
@@ -70,6 +71,7 @@ namespace Kroeg.Server.Controllers
             _signInManager = signInManager;
             _provider = provider;
             _configuration = configuration;
+            _flattener = flattener;
         }
 
         private async Task<BaseModel> _getUserInfo()
@@ -184,21 +186,34 @@ namespace Kroeg.Server.Controllers
 
             mainObj.Replace("url", new ASTerm(uploadUri + fileName));
 
-            try
+            if (obj["type"].Any(a => (string)a.Primitive == "Create"))
             {
-                obj = await handler.Post(HttpContext, (string)HttpContext.Items["fullPath"], obj);
+                try
+                {
+                    obj = await handler.Post(HttpContext, (string)HttpContext.Items["fullPath"], obj);
+                }
+                catch (UnauthorizedAccessException e)
+                {
+                    return StatusCode(403, e);
+                }
+                catch (InvalidOperationException e)
+                {
+                    return StatusCode(401, e);
+                }
+
+                if (obj == null)
+                    return NotFound();
             }
-            catch (UnauthorizedAccessException e)
+            else
             {
-                return StatusCode(403, e);
-            }
-            catch (InvalidOperationException e)
-            {
-                return StatusCode(401, e);
+                obj["id"].Clear();
+                obj.Replace("attributedTo", new ASTerm(User.FindFirstValue(JwtTokenSettings.ActorClaim)));
+                obj = (await _flattener.FlattenAndStore(_entityStore, obj)).Data;
+                await _entityStore.CommitChanges();
             }
 
-            if (obj == null)
-                return NotFound();
+            obj = await _flattener.Unflatten(_entityStore, APEntity.From(obj, true));
+
             return Content(obj.Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
        }
 

@@ -367,11 +367,11 @@ namespace Kroeg.Server.Middleware
                 typeof(CreateActivityHandler),
 
                 // commit changes before modifying collections
+                typeof(UpdateDeleteActivityHandler),
                 typeof(CommitChangesHandler),
                 typeof(FollowLikeHandler),
                 typeof(AddRemoveActivityHandler),
                 typeof(UndoActivityHandler),
-                typeof(UpdateDeleteActivityHandler),
                 typeof(DeliveryHandler),
                 typeof(WebSubHandler)
             };

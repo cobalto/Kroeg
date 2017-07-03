@@ -65,6 +65,8 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
                 data.Replace("updated", new ASTerm(DateTime.Now.ToString("o")));
 
                 newObject.Data = data;
+                newObject.Type = oldObject.Type;
+                await EntityStore.StoreEntity(newObject);
             }
             else
             {
