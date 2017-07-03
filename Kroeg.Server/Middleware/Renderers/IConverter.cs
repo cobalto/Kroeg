@@ -80,8 +80,8 @@ namespace Kroeg.Server.Middleware.Renderers
 
         public static string GetBestMatch(List<string> mimeTypes, StringValues stringValues)
         {
-            var requestMime = string.Join(", ", stringValues).Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(a => Normalize(a.Trim()));
-            return requestMime.FirstOrDefault(a => mimeTypes.Any(b => _equal(b, a)))?.ToString();
+            var requestMime = string.Join(", ", stringValues).Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(a => a.Trim());
+            return requestMime.FirstOrDefault(a => mimeTypes.Select(Normalize).Any(b => _equal(a, b)))?.ToString();
         }
     }
 }

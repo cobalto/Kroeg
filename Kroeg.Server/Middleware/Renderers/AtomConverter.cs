@@ -23,7 +23,7 @@ namespace Kroeg.Server.Middleware.Renderers
 
         private bool _isPost;
 
-        public List<string> MimeTypes => new List<string> { "application/atom+xml", "application/xml" };
+        public List<string> MimeTypes => new List<string> { "application/atom+xml" };
 
         public string RenderMimeType => MimeTypes[0];
 

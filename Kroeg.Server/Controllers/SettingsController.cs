@@ -240,9 +240,16 @@ namespace Kroeg.Server.Controllers
             var following = await _newCollection("following", id);
             var followers = await _newCollection("followers", id);
             var likes = await _newCollection("likes", id);
+            var blocks = await _newCollection("blocks", id);
+            var blocked = await _newCollection("blocked", id);
+
+            var blocksData = blocks.Data;
+            blocksData["_blocked"].Add(new ASTerm(blocked.Id));
+            blocks.Data = blocksData;
 
             obj["following"].Add(new ASTerm(following.Id));
             obj["followers"].Add(new ASTerm(followers.Id));
+            obj["blocks"].Add(new ASTerm(blocks.Id));
             obj["likes"].Add(new ASTerm(likes.Id));
             obj["inbox"].Add(new ASTerm(inbox.Id));
             obj["outbox"].Add(new ASTerm(outbox.Id));

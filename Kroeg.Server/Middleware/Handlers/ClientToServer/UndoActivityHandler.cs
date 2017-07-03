@@ -26,12 +26,24 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
             var toUndo = await EntityStore.GetEntity(toUndoId, false);
 
             if (toUndo == null || !toUndo.IsOwner) throw new InvalidOperationException("Object to undo does not exist!");
-            if (toUndo.Type != "Like" && toUndo.Type != "Follow") throw new InvalidOperationException("Cannot undo this type of object!");
-            if (!toUndo.Data["actor"].Contains(new ASTerm(Actor.Id))) throw new InvalidOperationException("You are not allowed to undo this activity!");
+            if (toUndo.Type != "Like" && toUndo.Type != "Follow" && toUndo.Type != "Block") throw new InvalidOperationException("Cannot undo this type of object!");
+            if (!toUndo.Data["actor"].Any(a => (string) a.Primitive == Actor.Id)) throw new InvalidOperationException("You are not allowed to undo this activity!");
 
             var userData = Actor.Data;
             string targetCollectionId = null;
-            if (toUndo.Type == "Like")
+            if (toUndo.Type == "Block")
+            {
+                var blocksCollection = await EntityStore.GetEntity((string)userData["blocks"].Single().Primitive, false);
+                var blockedCollection = await EntityStore.GetEntity((string)blocksCollection.Data["_blocked"].Single().Primitive, false);
+
+                await _collection.RemoveFromCollection(blocksCollection, toUndo);
+
+                var blockedUser = (string) toUndo.Data["object"].Single().Primitive;
+                await _collection.RemoveFromCollection(blockedCollection, blockedUser);
+
+                return true;
+            }
+            else if (toUndo.Type == "Like")
                 targetCollectionId = (string)userData["likes"].Single().Primitive;
             else if (toUndo.Type == "Follow")
                 targetCollectionId = (string)userData["following"].Single().Primitive;

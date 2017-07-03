@@ -205,6 +205,8 @@ namespace Kroeg.Server.Middleware
                 var userId = _user.FindFirstValue(JwtTokenSettings.ActorClaim);
                 var entity = await store.GetEntity(url, true);
                 if (entity == null) return null;
+                if (entity.Type == "_blocks" && !entity.Data["attributedTo"].Any(a => (string)a.Primitive == userId)) throw new UnauthorizedAccessException("Blocks are private!");
+                if (entity.Type == "_blocked") throw new UnauthorizedAccessException("This collection is only used internally for optimization reasons");
                 if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, arguments);
                 if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
                 var audience = DeliveryService.GetAudienceIds(entity.Data);
@@ -303,9 +305,7 @@ namespace Kroeg.Server.Middleware
                         var userId = original.Data["attributedTo"].FirstOrDefault() ?? original.Data["actor"].FirstOrDefault();
                         if (userId == null || context.User.FindFirst(JwtTokenSettings.ActorClaim).Value ==
                             (string) userId.Primitive) return await _clientToServer(context, original, @object);
-                        context.Response.StatusCode = 403;
-                        await context.Response.WriteAsync("what are you trying to do?");
-                        return null;
+                        throw new UnauthorizedAccessException("Cannot post to the outbox of another actor");
                 }
 
                 return null;
@@ -326,13 +326,18 @@ namespace Kroeg.Server.Middleware
 
             private async Task<ASObject> _serverToServer(HttpContext context, APEntity inbox, ASObject activity)
             {
-                _serverToServerMutex.WaitOne();
-
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) inbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
 
                 var flattened = await _flattener.FlattenAndStore(stagingStore, activity);
+
+                var sentBy = (string)activity["actor"].First().Primitive;
+                var blocks = await _mainStore.GetEntity((string) user.Data["blocks"].First().Primitive, false);
+                if (await _collectionTools.Contains((string)blocks.Data["_blocked"].First().Primitive, sentBy))
+                    throw new UnauthorizedAccessException("You are blocked.");
+
+                _serverToServerMutex.WaitOne();
 
                 try
                 {
@@ -372,6 +377,7 @@ namespace Kroeg.Server.Middleware
                 typeof(FollowLikeHandler),
                 typeof(AddRemoveActivityHandler),
                 typeof(UndoActivityHandler),
+                typeof(BlockHandler),
                 typeof(DeliveryHandler),
                 typeof(WebSubHandler)
             };

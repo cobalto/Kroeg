@@ -78,7 +78,7 @@ SHOULD
 * Like
   * [x] Adds the object to the actor's Likes Collection.
 * Block
-  * [ ] Prevent the blocked object from interacting with any object posted by the actor.
+  * [x] Prevent the blocked object from interacting with any object posted by the actor.
 
 #### Deliver to inboxes
 

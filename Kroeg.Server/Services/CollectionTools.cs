@@ -43,9 +43,10 @@ namespace Kroeg.Server.Services
 
         private string _getUser() => _contextAccessor.HttpContext.User.FindFirstValue(JwtTokenSettings.ActorClaim);
 
-        private static bool _verifyAudience(string user, CollectionItem entity)
+        private bool _verifyAudience(string user, CollectionItem entity)
         {
             if (entity.IsPublic) return true;
+            if (_configuration.IsActor(entity.Element.Data)) return true;
             var audience = DeliveryService.GetAudienceIds(entity.Element.Data);
             return audience.Contains(user);
         }

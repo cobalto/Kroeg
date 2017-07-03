@@ -67,6 +67,8 @@ namespace Kroeg.Server.Services
             targetIds.AddRange(@object["cc"].Select(a => (string)a.Primitive));
             targetIds.AddRange(@object["bcc"].Select(a => (string)a.Primitive));
             targetIds.AddRange(@object["audience"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["attributedTo"].Select(a => (string)a.Primitive));
+            targetIds.AddRange(@object["actor"].Select(a => (string)a.Primitive));
 
             return new HashSet<string>(targetIds);
         }
