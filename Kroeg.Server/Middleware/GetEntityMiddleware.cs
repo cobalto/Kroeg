@@ -89,9 +89,10 @@ namespace Kroeg.Server.Middleware
             IConverter writeConverter = null;
             bool needRead = context.Request.Method == "POST";
             var target = fullpath;
+            APEntity targetEntity = null;
             if (needRead)
             {
-                var targetEntity = await store.GetEntity(target, false);
+                targetEntity = await store.GetEntity(target, false);
                 if (targetEntity?.Type == "_inbox")
                     target = (string)targetEntity.Data["attributedTo"].Single().Primitive;
             }
@@ -118,7 +119,7 @@ namespace Kroeg.Server.Middleware
             ASObject data = null;
             if (readConverter != null)
                 data = await readConverter.Parse(context.Request.Body);
-            if (data == null && needRead)
+            if (data == null && needRead && targetEntity != null)
             {
                 context.Response.StatusCode = 415;
                 await context.Response.WriteAsync("Unknown mime type " + context.Request.ContentType);
@@ -154,6 +155,12 @@ namespace Kroeg.Server.Middleware
 
             if (data != null)
             {
+                if (context.Request.Method == "HEAD")
+                {
+                    context.Response.StatusCode = 200;
+                    return;
+                }
+
                 if (writeConverter != null)
                     await writeConverter.Render(context.Request, context.Response, data);
                 else if (context.Request.ContentType == "application/magic-envelope+xml")
