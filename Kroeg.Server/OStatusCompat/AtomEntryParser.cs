@@ -368,6 +368,9 @@ namespace Kroeg.Server.OStatusCompat
                 }
             }
 
+            if (targetUser != null)
+                ao["cc"].Add(new ASTerm(targetUser));
+
             if (retrievalUrl != null)
                 ao.Replace("_:atomRetrieveUrl", new ASTerm(retrievalUrl));
 
