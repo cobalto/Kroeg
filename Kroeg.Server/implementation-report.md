@@ -50,7 +50,7 @@ MUST
 * [x] Ignores 'id' on submitted objects, and generates a new id instead
 * [x] Responds with status code 201 Created
 * [x] Response includes Location header whose value is id of new object, unless the Activity is transient
-* [ ] Accepts Uploaded Media in submissions
+* [x] Accepts Uploaded Media in submissions
   * accepts uploadedMedia file parameter
   * accepts uploadedMedia object parameter
   * Responds with status code of 201 Created or 202 Accepted as described in 6.
@@ -64,10 +64,10 @@ SHOULD
 
 * [x] Server does not trust client submitted content
 * [x] Validate the content they receive to avoid content spoofing attacks.
-* [ ] After receiving submission with uploaded media, the server should include the upload's new URL in the submitted object's url property
+* [x] After receiving submission with uploaded media, the server should include the upload's new URL in the submitted object's url property
 * [x] Take care not to overload other servers with delivery submissions
 * Create
-  * [ ] merges audience properties (to, bto, cc, bcc, audience) with the Create's 'object's audience properties
+  * [x] merges audience properties (to, bto, cc, bcc, audience) with the Create's 'object's audience properties
   * [x] Create's actor property is copied to be the value of .object.attributedTo
 * Follow
   * [x] Adds followed object to the actor's Following Collection
@@ -145,7 +145,7 @@ MUST
 
 SHOULD
 
-* [ ] Server filters inbox content according to the requester's permission
+* [x] Server filters inbox content according to the requester's permission
 
 #### Allow Object Retrieval
 
@@ -168,9 +168,9 @@ SHOULD
   * [x] Respond with 410 Gone status code to requests for deleted objects
   * [x] Respond with response body that is an ActivityStreams Object of type `Tombstone`.
   * [x] Respond with 404 status code for Object URIs that have never existed
-* [ ] Respond with a 403 Forbidden status code to all requests that access Objects considered Private
-* [ ] Respond to requests which do not pass authorization checks using "the appropriate HTTP error code"
-* [ ] Respond with a 403 Forbidden error code to all requests to Object URIs where the existence of the object is considered private.
+* [x] Respond with a 403 Forbidden status code to all requests that access Objects considered Private
+* [x] Respond to requests which do not pass authorization checks using "the appropriate HTTP error code"
+* [x] Respond with a 403 Forbidden error code to all requests to Object URIs where the existence of the object is considered private.
 
 ## Security Considerations
 
@@ -178,7 +178,7 @@ non-normative
 
 * [x] Server verifies that the new content is really posted by the author indicated in Objects received in inbox and outbox ([B.1](https://w3c.github.io/activitypub/#security-verification))
 * [ ] By default, implementation does not make HTTP requests to localhost when delivering Activities ([B.2](https://w3c.github.io/activitypub/#security-localhost))
-* [ ] Implementation applies a whitelist of allowed URI protocols before issuing requests, e.g. for inbox delivery ([B.3](https://w3c.github.io/activitypub/#security-uri-schemes))
+* [x] Implementation applies a whitelist of allowed URI protocols before issuing requests, e.g. for inbox delivery ([B.3](https://w3c.github.io/activitypub/#security-uri-schemes))
 * [ ] Server filters incoming content both by local untrusted users and any remote users through some sort of spam filter ([B.4](https://w3c.github.io/activitypub/#security-spam))
 * [ ] Implementation takes care to santizie fields containing markup to prevent cross site scripting attacks ([B.5](https://w3c.github.io/activitypub/#security-sanitizing-content))
 

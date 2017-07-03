@@ -28,6 +28,14 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
             entity.Replace(obj, new ASTerm(collection.Id));
         }
 
+        private void _merge(List<ASTerm> to, List<ASTerm> from)
+        {
+            var str = new HashSet<string>(to.Select(a => (string)a.Primitive).Concat(from.Select(a => (string) a.Primitive)));
+
+            to.Clear();
+            to.AddRange(str.Select(a => new ASTerm(a)));
+        }
+
         public override async Task<bool> Handle()
         {
             if (MainObject.Type != "Create") return true;
@@ -42,9 +50,16 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
             await AddCollection(objectData, "shares", "_shares", objectEntity.Id);
             await AddCollection(objectData, "replies", "_replies", objectEntity.Id);
 
+            _merge(activityData["to"], objectData["to"]);
+            _merge(activityData["bto"], objectData["bto"]);
+            _merge(activityData["cc"], objectData["cc"]);
+            _merge(activityData["bcc"], objectData["bcc"]);
+            _merge(activityData["audience"], objectData["audience"]);
+
             objectData.Replace("published", new ASTerm(DateTime.Now.ToString("o")));
 
             objectEntity.Data = objectData;
+            MainObject.Data = activityData;
 
             return true;
         }

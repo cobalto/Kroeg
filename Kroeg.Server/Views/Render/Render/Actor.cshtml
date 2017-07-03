@@ -55,7 +55,7 @@
     <div class="actor-recent">
         @foreach (var element in (await collectionHelper.GetItems(outbox, count: 4)))
         {
-            @await Html.PartialAsync("Embed/Activity", element)
+            @await Html.PartialAsync("Embed/Activity", element.Element)
         }
     </div>
 </div>

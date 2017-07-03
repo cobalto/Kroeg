@@ -68,6 +68,14 @@ namespace Kroeg.Server.Middleware
                 return;
             }
 
+            if (context.Request.Method == "POST" && context.Request.ContentType.StartsWith("multipart/form-data"))
+            {
+                context.Items.Add("fullPath", fullpath);
+                context.Request.Path = "/settings/uploadMedia";
+                await _next(context);
+                return;
+            }
+
             if (context.Request.QueryString.Value == "?hub")
             {
                 context.Items.Add("fullPath", fullpath);
@@ -113,13 +121,26 @@ namespace Kroeg.Server.Middleware
 
             var arguments = context.Request.Query;
 
-            if (context.Request.Method == "GET" || context.Request.Method == "HEAD")
+            try
             {
-                data = await handler.Get(fullpath, arguments);
+                if (context.Request.Method == "GET" || context.Request.Method == "HEAD")
+                {
+                    data = await handler.Get(fullpath, arguments);
+                }
+                else if (context.Request.Method == "POST" && data != null)
+                {
+                    data = await handler.Post(context, fullpath, data);
+                }
             }
-            else if (context.Request.Method == "POST" && data != null)
+            catch (UnauthorizedAccessException e)
             {
-                data = await handler.Post(context, fullpath, data);
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsync(e.Message);
+            }
+            catch (InvalidOperationException e)
+            {
+                context.Response.StatusCode = 401;
+                await context.Response.WriteAsync(e.Message);
             }
 
             if (context.Response.HasStarted)
@@ -148,7 +169,7 @@ namespace Kroeg.Server.Middleware
                 await _next(context);
             }
         }
-        private class GetEntityHandler
+        public class GetEntityHandler
         {
             private readonly APContext _context;
             private readonly EntityFlattener _flattener;
@@ -188,8 +209,11 @@ namespace Kroeg.Server.Middleware
                 if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
                 var audience = DeliveryService.GetAudienceIds(entity.Data);
 
-                if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string) a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
+                if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string)a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
+                {
+                    throw new UnauthorizedAccessException("No access");
                     return null; // unauthorized
+                }
 
                 return entity.Data;
             }
@@ -212,6 +236,7 @@ namespace Kroeg.Server.Middleware
                 endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(_entityData.BaseUri + "/auth/oauth"));
                 endpoints.Replace("oauthTokenEndpoint", new ASTerm(_entityData.BaseUri + "/auth/token"));
                 endpoints.Replace("settingsEndpoint", new ASTerm(_entityData.BaseUri + "/settings/auth"));
+                endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
                 endpoints.Replace("id", new ASTerm((string)null));
 
                 data.Replace("endpoints", new ASTerm(endpoints));
@@ -307,8 +332,6 @@ namespace Kroeg.Server.Middleware
                 var userId = (string) inbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
 
-                //protected BaseHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox)
-
                 var flattened = await _flattener.FlattenAndStore(stagingStore, activity);
 
                 try
@@ -327,18 +350,13 @@ namespace Kroeg.Server.Middleware
                         await _context.SaveChangesAsync();
 
                         transaction.Commit();
-                        _serverToServerMutex.Release();
 
                         return flattened.Data;
                     }
                 }
-                catch (InvalidOperationException e)
+                finally
                 {
                     _serverToServerMutex.Release();
-
-                    context.Response.StatusCode = 401;
-                    await context.Response.WriteAsync(e.Message);
-                    return null;
                 }
             }
 
@@ -370,9 +388,7 @@ namespace Kroeg.Server.Middleware
                     if (_entityData.IsActivity((string) activity["type"].First().Primitive))
 #pragma warning restore CS0618 // Type or member is obsolete
                     {
-                        context.Response.StatusCode = 403;
-                        await context.Response.WriteAsync("Activity without actor??");
-                        return null;
+                        throw new UnauthorizedAccessException("Sending an Activity without an actor isn't allowed. Are you sure you wanted to do that?");
                     }
 
                     var createActivity = new ASObject();
@@ -396,31 +412,22 @@ namespace Kroeg.Server.Middleware
 
                 var flattened = await _flattener.FlattenAndStore(stagingStore, activity);
 
-                try
+                using (var transaction = _context.Database.BeginTransaction())
                 {
-                    using (var transaction = _context.Database.BeginTransaction())
+                    foreach (var type in _clientToServerHandlers)
                     {
-                        foreach (var type in _clientToServerHandlers)
-                        {
-                            var handler = (BaseHandler) ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                                stagingStore, flattened, user, outbox, context.User);
-                            var handled = await handler.Handle();
-                            flattened = handler.MainObject;
-                            if (!handled) break;
-                        }
-
-                        await _context.SaveChangesAsync();
-
-                        transaction.Commit();
-
-                        return flattened.Data;
+                        var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
+                            stagingStore, flattened, user, outbox, context.User);
+                        var handled = await handler.Handle();
+                        flattened = handler.MainObject;
+                        if (!handled) break;
                     }
-                }
-                catch (InvalidOperationException e)
-                {
-                    context.Response.StatusCode = 401;
-                    await context.Response.WriteAsync(e.Message);
-                    return null;
+
+                    await _context.SaveChangesAsync();
+
+                    transaction.Commit();
+
+                    return flattened.Data;
                 }
             }
         }

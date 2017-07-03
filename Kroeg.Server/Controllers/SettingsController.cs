@@ -16,6 +16,10 @@ using Kroeg.Server.Configuration;
 using Microsoft.AspNetCore.Http.Authentication;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
+using Kroeg.Server.Middleware;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -54,14 +58,18 @@ namespace Kroeg.Server.Controllers
         private readonly EntityData _entityData;
         private readonly JwtTokenSettings _tokenSettings;
         private readonly SignInManager<APUser> _signInManager;
+        private readonly IServiceProvider _provider;
+        private readonly IConfigurationRoot _configuration;
 
-        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager)
+        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration)
         {
             _context = context;
             _entityStore = entityStore;
             _entityData = entityData;
             _tokenSettings = tokenSettings;
             _signInManager = signInManager;
+            _provider = provider;
+            _configuration = configuration;
         }
 
         private async Task<BaseModel> _getUserInfo()
@@ -148,6 +156,51 @@ namespace Kroeg.Server.Controllers
 
             return entity;
         }
+
+        [Authorize, HttpPost("uploadMedia")]
+        public async Task<IActionResult> UploadMedia()
+        {
+            var @object = Request.Form["object"];
+            var file = Request.Form.Files["file"];
+
+            var handler = ActivatorUtilities.CreateInstance<GetEntityMiddleware.GetEntityHandler>(_provider, User);
+            var obj = ASObject.Parse(@object);
+            var mainObj = obj;
+            if (obj["object"].Any())
+            {
+                mainObj = obj["object"].Single().SubObject;
+            }
+
+            var uploadPath = _configuration.GetSection("Kroeg")["FileUploadPath"];
+            var uploadUri = _configuration.GetSection("Kroeg")["FileUploadUrl"];
+
+            var extension = file.FileName.Split('.').Last().Replace('/', '_');
+
+            var fileName = Guid.NewGuid().ToString() + "." + extension;
+
+            var str = System.IO.File.OpenWrite(uploadPath + fileName);
+            await file.CopyToAsync(str);
+            str.Dispose();
+
+            mainObj.Replace("url", new ASTerm(uploadUri + fileName));
+
+            try
+            {
+                obj = await handler.Post(HttpContext, (string)HttpContext.Items["fullPath"], obj);
+            }
+            catch (UnauthorizedAccessException e)
+            {
+                return StatusCode(403, e);
+            }
+            catch (InvalidOperationException e)
+            {
+                return StatusCode(401, e);
+            }
+
+            if (obj == null)
+                return NotFound();
+            return Content(obj.Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+       }
 
         [Authorize, HttpPost("new")]
         public async Task<IActionResult> MakeNewActor(NewActorModel model)
