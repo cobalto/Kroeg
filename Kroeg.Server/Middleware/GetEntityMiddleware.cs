@@ -100,7 +100,7 @@ namespace Kroeg.Server.Middleware
             foreach (var converterFactory in _converters)
             {
                 bool worksForWrite = converterFactory.CanRender && ConverterHelpers.GetBestMatch(converterFactory.MimeTypes, context.Request.Headers["Accept"]) != null; 
-                bool worksForRead = needRead && converterFactory.CanParse && converterFactory.MimeTypes.Contains(context.Request.ContentType);
+                bool worksForRead = needRead && converterFactory.CanParse && ConverterHelpers.GetBestMatch(converterFactory.MimeTypes, context.Request.ContentType) != null;
 
                 if (worksForRead && worksForWrite && readConverter == null && writeConverter == null)
                 {
