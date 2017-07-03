@@ -118,6 +118,12 @@ namespace Kroeg.Server.Middleware
             ASObject data = null;
             if (readConverter != null)
                 data = await readConverter.Parse(context.Request.Body);
+            if (data == null && needRead)
+            {
+                context.Response.StatusCode = 415;
+                await context.Response.WriteAsync("Unknown mime type " + context.Request.ContentType);
+                return;
+            }
 
             var arguments = context.Request.Query;
 
