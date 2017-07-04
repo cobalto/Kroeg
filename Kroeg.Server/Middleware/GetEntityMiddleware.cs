@@ -90,11 +90,18 @@ namespace Kroeg.Server.Middleware
             bool needRead = context.Request.Method == "POST";
             var target = fullpath;
             APEntity targetEntity = null;
+            targetEntity = await store.GetEntity(target, false);
+
             if (needRead)
             {
-                targetEntity = await store.GetEntity(target, false);
                 if (targetEntity?.Type == "_inbox")
                     target = (string)targetEntity.Data["attributedTo"].Single().Primitive;
+            }
+
+            if (targetEntity == null)
+            {
+                await _next(context);
+                return;
             }
 
 
@@ -119,12 +126,6 @@ namespace Kroeg.Server.Middleware
             ASObject data = null;
             if (readConverter != null)
                 data = await readConverter.Parse(context.Request.Body);
-
-            if (targetEntity == null)
-            {
-                await _next(context);
-                return;
-            }
 
             if (data == null && needRead && targetEntity != null)
             {

@@ -288,7 +288,7 @@ namespace Kroeg.Server.Controllers
         }
 
         [HttpPost("badgetoken")]
-        public async Task<IActionResult> DoBadgeToken(BadgeTokenModel model)
+        public async Task<IActionResult> DoBadgeToken([FromBody] BadgeTokenModel model)
         {
             var user = await _userManager.FindByNameAsync(model.Username);
             if (user == null)
