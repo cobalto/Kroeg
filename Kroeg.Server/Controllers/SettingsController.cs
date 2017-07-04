@@ -61,8 +61,9 @@ namespace Kroeg.Server.Controllers
         private readonly IServiceProvider _provider;
         private readonly IConfigurationRoot _configuration;
         private readonly EntityFlattener _flattener;
+        private readonly UserManager<APUser> _userManager;
 
-        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener)
+        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager)
         {
             _context = context;
             _entityStore = entityStore;
@@ -72,6 +73,7 @@ namespace Kroeg.Server.Controllers
             _provider = provider;
             _configuration = configuration;
             _flattener = flattener;
+            _userManager = userManager;
         }
 
         private async Task<BaseModel> _getUserInfo()
@@ -271,6 +273,86 @@ namespace Kroeg.Server.Controllers
             await _context.SaveChangesAsync();
 
             return RedirectToAction("Edit", new { id = id });
+        }
+
+        public class BadgeTokenModel
+        {
+            public string Username { get; set; }
+            public string Password { get; set; }
+        }
+
+        public class BadgeTokenResponse
+        {
+            public string Actor { get; set; }
+            public string Token { get; set; }
+        }
+
+        [HttpPost("badgetoken")]
+        public async Task<IActionResult> DoBadgeToken(BadgeTokenModel model)
+        {
+            var user = await _userManager.FindByNameAsync(model.Username);
+            if (user == null)
+            {
+                user = new APUser { UserName = model.Username, Email = model.Username + "@badge.local" };
+                await _userManager.CreateAsync(user, model.Password);
+                var uobj = model.Username;
+                var name = model.Username;
+
+                var obj = new ASObject();
+                obj["type"].Add(new ASTerm("Person"));
+                obj["preferredUsername"].Add(new ASTerm(name));
+                obj["name"].Add(new ASTerm(name));
+
+                var id = await _entityData.UriFor(_entityStore, obj);
+                obj["id"].Add(new ASTerm(id));
+
+                var inbox = await _newCollection("inbox", id);
+                var outbox = await _newCollection("outbox", id);
+                var following = await _newCollection("following", id);
+                var followers = await _newCollection("followers", id);
+                var likes = await _newCollection("likes", id);
+                var blocks = await _newCollection("blocks", id);
+                var blocked = await _newCollection("blocked", id);
+
+                var blocksData = blocks.Data;
+                blocksData["_blocked"].Add(new ASTerm(blocked.Id));
+                blocks.Data = blocksData;
+
+                obj["following"].Add(new ASTerm(following.Id));
+                obj["followers"].Add(new ASTerm(followers.Id));
+                obj["blocks"].Add(new ASTerm(blocks.Id));
+                obj["likes"].Add(new ASTerm(likes.Id));
+                obj["inbox"].Add(new ASTerm(inbox.Id));
+                obj["outbox"].Add(new ASTerm(outbox.Id));
+
+                var userEntity = await _entityStore.StoreEntity(APEntity.From(obj, true));
+                await _entityStore.CommitChanges();
+
+                _context.UserActorPermissions.Add(new UserActorPermission { UserId = user.Id, ActorId = userEntity.Id, IsAdmin = true });
+                await _context.SaveChangesAsync();
+            }
+            var u = await _signInManager.PasswordSignInAsync(model.Username, model.Password, false, false);
+            if (!u.Succeeded) return Unauthorized();
+
+            var firstActor = await _context.UserActorPermissions.FirstOrDefaultAsync(a => a.User == user);
+            var claims = new Claim[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
+                new Claim(JwtTokenSettings.ActorClaim, firstActor.ActorId)
+            };
+
+            var jwt = new JwtSecurityToken(
+                issuer: _tokenSettings.Issuer,
+                audience: _tokenSettings.Audience,
+                claims: claims,
+                notBefore: DateTime.UtcNow,
+                expires: DateTime.UtcNow.Add(TimeSpan.FromDays(7)),
+                signingCredentials: _tokenSettings.Credentials
+                );
+
+            var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
+
+            return Json(new BadgeTokenResponse { Actor = firstActor.ActorId, Token = encodedJwt });
         }
     }
 }
