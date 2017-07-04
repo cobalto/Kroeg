@@ -48,12 +48,12 @@ namespace Kroeg.Server.Tools
 
         private static readonly HashSet<string> IdHolding = new HashSet<string>
         {
-            "subject", "relationship", "actor", "attributedTo", "attachment", "bcc", "bto", "cc", "context", "current", "first", "generator", "icon", "image", "inReplyTo", "items", "instrument", "orderedItems", "last", "location", "next", "object", "oneOf", "anyOf", "origin", "prev", "preview", "replies", "result", "audience", "partOf", "tag", "target", "to", "describes", "formerType", "streams", "endpoints", "uploadMedia", "proxyUrl"
+            "subject", "relationship", "actor", "attributedTo", "attachment", "bcc", "bto", "cc", "context", "current", "first", "generator", "icon", "image", "inReplyTo", "items", "instrument", "orderedItems", "last", "location", "next", "object", "oneOf", "anyOf", "origin", "prev", "preview", "replies", "result", "audience", "partOf", "tag", "target", "to", "describes", "formerType", "streams"
         };
 
         private static readonly HashSet<string> MayNotFlatten = new HashSet<string>
         {
-            "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience"
+            "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience", "endpoints"
         };
 
         private async Task<APEntity> _flatten(IEntityStore store, ASObject @object, IDictionary<string, APEntity> entities, string parentId = null)
