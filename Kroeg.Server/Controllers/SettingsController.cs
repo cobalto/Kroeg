@@ -20,6 +20,8 @@ using Microsoft.AspNetCore.Http;
 using Kroeg.Server.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Kroeg.Server.Services;
+using Newtonsoft.Json.Linq;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -62,8 +64,9 @@ namespace Kroeg.Server.Controllers
         private readonly IConfigurationRoot _configuration;
         private readonly EntityFlattener _flattener;
         private readonly UserManager<APUser> _userManager;
+        private readonly RelevantEntitiesService _relevantEntities;
 
-        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager)
+        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager, RelevantEntitiesService relevantEntities)
         {
             _context = context;
             _entityStore = entityStore;
@@ -74,6 +77,7 @@ namespace Kroeg.Server.Controllers
             _configuration = configuration;
             _flattener = flattener;
             _userManager = userManager;
+            _relevantEntities = relevantEntities;
         }
 
         private async Task<BaseModel> _getUserInfo()
@@ -218,6 +222,29 @@ namespace Kroeg.Server.Controllers
 
             return Content(obj.Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
        }
+
+        public class RelevantObjectsModel {
+            public string id { get; set; }
+        }
+
+        [Authorize, HttpPost("relevant")]
+        public async Task<IActionResult> RelevantEntities(RelevantObjectsModel model)
+        {
+            var user = User.FindFirstValue(JwtTokenSettings.ActorClaim);
+            if (user == null) return Json(new List<ASObject>());
+
+            var relevant = await _relevantEntities.FindRelevantObject(user, null, model.id);
+
+            ASObject relevantObject = new ASObject();
+            relevantObject["id"].Add(new ASTerm((string) null));
+
+            foreach (var item in relevant)
+            {
+                relevantObject["relevant"].Add(new ASTerm(item.Data));
+            }
+
+            return Content((await _flattener.Unflatten(_entityStore, APEntity.From(relevantObject), 5)).Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+        }
 
         [Authorize, HttpPost("new")]
         public async Task<IActionResult> MakeNewActor(NewActorModel model)

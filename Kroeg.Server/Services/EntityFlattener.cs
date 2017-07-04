@@ -107,11 +107,11 @@ namespace Kroeg.Server.Tools
 
             foreach (var kv in @object)
             {
-                if (!IdHolding.Contains(kv.Key) || MayNotFlatten.Contains(kv.Key)) continue;
                 foreach (var value in kv.Value)
                 {
                     if (value.SubObject != null) value.SubObject = await _unflatten(store, APEntity.From(value.SubObject), depth - 1, alreadyMapped);
                     if (value.Primitive == null) continue;
+                    if (!IdHolding.Contains(kv.Key) || MayNotFlatten.Contains(kv.Key)) continue;
                     var id = (string)value.Primitive;
 
                     if (alreadyMapped.ContainsKey(id)) continue;

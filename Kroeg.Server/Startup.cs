@@ -94,6 +94,7 @@ namespace Kroeg.Server
             services.AddTransient<EntityFlattener>();
             services.AddTransient<CollectionTools>();
             services.AddTransient<DeliveryService>();
+            services.AddTransient<RelevantEntitiesService>();
             services.AddTransient<DatabaseEntityStore>();
             services.AddTransient<ActivityService>();
             services.AddTransient<AtomEntryParser>();
