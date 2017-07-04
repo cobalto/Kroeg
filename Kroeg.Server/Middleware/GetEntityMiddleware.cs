@@ -119,6 +119,13 @@ namespace Kroeg.Server.Middleware
             ASObject data = null;
             if (readConverter != null)
                 data = await readConverter.Parse(context.Request.Body);
+
+            if (targetEntity == null)
+            {
+                await _next(context);
+                return;
+            }
+
             if (data == null && needRead && targetEntity != null)
             {
                 context.Response.StatusCode = 415;
