@@ -400,6 +400,7 @@ namespace Kroeg.Server.Middleware
                 typeof(AddRemoveActivityHandler),
                 typeof(UndoActivityHandler),
                 typeof(BlockHandler),
+                typeof(CreateActorHandler),
                 typeof(DeliveryHandler),
                 typeof(WebSubHandler)
             };

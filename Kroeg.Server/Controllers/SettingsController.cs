@@ -22,6 +22,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Kroeg.Server.Services;
 using Newtonsoft.Json.Linq;
+using Kroeg.Server.Middleware.Handlers.ClientToServer;
+using Kroeg.Server.Middleware.Handlers.Shared;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -65,8 +67,9 @@ namespace Kroeg.Server.Controllers
         private readonly EntityFlattener _flattener;
         private readonly UserManager<APUser> _userManager;
         private readonly RelevantEntitiesService _relevantEntities;
+        private readonly CollectionTools _collectionTools;
 
-        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager, RelevantEntitiesService relevantEntities)
+        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager, RelevantEntitiesService relevantEntities, CollectionTools collectionTools)
         {
             _context = context;
             _entityStore = entityStore;
@@ -78,6 +81,7 @@ namespace Kroeg.Server.Controllers
             _flattener = flattener;
             _userManager = userManager;
             _relevantEntities = relevantEntities;
+            _collectionTools = collectionTools;
         }
 
         private async Task<BaseModel> _getUserInfo()
@@ -261,45 +265,21 @@ namespace Kroeg.Server.Controllers
             if (!string.IsNullOrWhiteSpace(model.Summary))
                 obj["summary"].Add(new ASTerm(model.Summary));
 
-            var id = await _entityData.UriFor(_entityStore, obj);
-            obj["id"].Add(new ASTerm(id));
+            var create = new ASObject();
+            create["type"].Add(new ASTerm("Create"));
+            create["object"].Add(new ASTerm(obj));
 
-            var inbox = await _newCollection("inbox", id);
-            var outbox = await _newCollection("outbox", id);
-            var following = await _newCollection("following", id);
-            var followers = await _newCollection("followers", id);
-            var likes = await _newCollection("likes", id);
-            var blocks = await _newCollection("blocks", id);
-            var blocked = await _newCollection("blocked", id);
+            var stagingStore = new StagingEntityStore(_entityStore);
+            var apo = await _flattener.FlattenAndStore(stagingStore, create);
+            var handler = new CreateActorHandler(stagingStore, apo, null, null, User, _collectionTools, _entityData, _context);
+            await handler.Handle();
 
-            var blocksData = blocks.Data;
-            blocksData["_blocked"].Add(new ASTerm(blocked.Id));
-            blocks.Data = blocksData;
+            var resultUser = await _entityStore.GetEntity((string) handler.MainObject.Data["object"].First().Primitive, false);
+            var outbox = await _entityStore.GetEntity((string)resultUser.Data["outbox"].First().Primitive, false);
+            var delivery = new DeliveryHandler(stagingStore, handler.MainObject, resultUser, outbox, User, _collectionTools, _provider.GetRequiredService<DeliveryService>());
+            await delivery.Handle();
 
-            obj["following"].Add(new ASTerm(following.Id));
-            obj["followers"].Add(new ASTerm(followers.Id));
-            obj["blocks"].Add(new ASTerm(blocks.Id));
-            obj["likes"].Add(new ASTerm(likes.Id));
-            obj["inbox"].Add(new ASTerm(inbox.Id));
-            obj["outbox"].Add(new ASTerm(outbox.Id));
-
-
-            var userEntity = await _entityStore.StoreEntity(APEntity.From(obj, true));
-            await _entityStore.CommitChanges();
-
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier).Value;
-
-            _context.UserActorPermissions.Add(new UserActorPermission { UserId = userId, ActorId = userEntity.Id, IsAdmin = true });
-
-            var key = new SalmonKey();
-            var salmon = MagicKey.Generate();
-            key.EntityId = userEntity.Id;
-            key.PrivateKey = salmon.PrivateKey;
-
-            _context.SalmonKeys.Add(key);
-            await _context.SaveChangesAsync();
-
-            return RedirectToAction("Edit", new { id = id });
+            return RedirectToAction("Edit", new { id = resultUser.Id });
         }
 
         public class BadgeTokenModel
