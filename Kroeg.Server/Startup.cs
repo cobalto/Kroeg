@@ -80,10 +80,8 @@ namespace Kroeg.Server
                 }
             });
 
-            services.AddSingleton(new EntityData
+            services.AddSingleton(new EntityData(Configuration.GetSection("Kroeg"))
             {
-                BaseUri = Configuration.GetSection("Kroeg")["BaseUri"],
-                RewriteRequestScheme = Configuration.GetSection("Kroeg")["RewriteRequestScheme"] == "True",
                 EntityNames = Configuration.GetSection("EntityNames")
             });
 

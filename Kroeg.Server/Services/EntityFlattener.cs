@@ -41,7 +41,7 @@ namespace Kroeg.Server.Tools
         {
             if (mapped == null)
                 mapped = new Dictionary<string, APEntity>();
-            var unflattened = await _unflatten(store, entity, depth, mapped);
+            var unflattened = await _unflatten(store, entity, depth, mapped, _configuration.UnflattenRemotely);
 
             return unflattened;
         }
@@ -95,7 +95,7 @@ namespace Kroeg.Server.Tools
 
         private static HashSet<string> _avoidFlatteningTypes = new HashSet<string> { "OrderedCollection", "Collection", "_replies", "_likes", "_shares", "_:LazyLoad" };
 
-        private static async Task<ASObject> _unflatten(IEntityStore store, APEntity entity, int depth, IDictionary<string, APEntity> alreadyMapped)
+        private static async Task<ASObject> _unflatten(IEntityStore store, APEntity entity, int depth, IDictionary<string, APEntity> alreadyMapped, bool remote)
         {
             if (depth == 0)
                 return entity.Data;
@@ -109,7 +109,7 @@ namespace Kroeg.Server.Tools
             {
                 foreach (var value in kv.Value)
                 {
-                    if (value.SubObject != null) value.SubObject = await _unflatten(store, APEntity.From(value.SubObject), depth - 1, alreadyMapped);
+                    if (value.SubObject != null) value.SubObject = await _unflatten(store, APEntity.From(value.SubObject), depth - 1, alreadyMapped, remote);
                     if (value.Primitive == null) continue;
                     if (!IdHolding.Contains(kv.Key) || MayNotFlatten.Contains(kv.Key)) continue;
                     var id = (string)value.Primitive;
@@ -117,9 +117,9 @@ namespace Kroeg.Server.Tools
                     if (alreadyMapped.ContainsKey(id)) continue;
 
                     var obj = await store.GetEntity(id, false);
-                    if (obj == null || _avoidFlatteningTypes.Contains(obj.Type)) continue;
+                    if (obj == null || _avoidFlatteningTypes.Contains(obj.Type) || (!remote && !obj.IsOwner)) continue;
                     value.Primitive = null;
-                    value.SubObject = await _unflatten(store, obj, depth - 1, alreadyMapped);
+                    value.SubObject = await _unflatten(store, obj, depth - 1, alreadyMapped, remote);
                 }
             }
 
