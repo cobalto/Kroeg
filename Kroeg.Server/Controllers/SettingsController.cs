@@ -314,6 +314,7 @@ namespace Kroeg.Server.Controllers
             public string Token { get; set; }
         }
 
+#if SHABADGE
         [HttpPost("badgetoken")]
         public async Task<IActionResult> DoBadgeToken([FromBody] BadgeTokenModel model)
         {
@@ -381,5 +382,6 @@ namespace Kroeg.Server.Controllers
 
             return Json(new BadgeTokenResponse { Actor = firstActor.ActorId, Token = encodedJwt });
         }
+#endif
     }
 }
