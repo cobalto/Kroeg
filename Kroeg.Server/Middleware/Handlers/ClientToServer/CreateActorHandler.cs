@@ -28,6 +28,10 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
         private async Task<APEntity> AddCollection(ASObject entity, string obj, string parent)
         {
             var collection = await _collection.NewCollection(EntityStore, null, "_" + obj, parent);
+            var data = collection.Data;
+            data.Replace("attributedTo", new ASTerm(parent));
+            collection.Data = data;
+
             await EntityStore.StoreEntity(collection);
 
             entity.Replace(obj, new ASTerm(collection.Id));

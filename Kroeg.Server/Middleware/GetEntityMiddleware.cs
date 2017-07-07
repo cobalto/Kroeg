@@ -24,6 +24,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Kroeg.Server.Middleware.Renderers;
 using System.Threading;
 using System.Security.Claims;
+using System.Collections.Concurrent;
+using System.IdentityModel.Tokens.Jwt;
+using Microsoft.IdentityModel.Tokens;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -201,10 +204,12 @@ namespace Kroeg.Server.Middleware
             private readonly DeliveryService _deliveryService;
             private readonly ClaimsPrincipal _user;
             private readonly CollectionTools _collectionTools;
+            private readonly INotifier _notifier;
+            private readonly JwtTokenSettings _tokenSettings;
 
             public GetEntityHandler(APContext acontext, EntityFlattener flattener, IEntityStore mainStore,
                 AtomEntryGenerator entryGenerator, IServiceProvider serviceProvider, DeliveryService deliveryService,
-                EntityData entityData, ClaimsPrincipal user, CollectionTools collectionTools)
+                EntityData entityData, ClaimsPrincipal user, CollectionTools collectionTools, INotifier notifier, JwtTokenSettings tokenSettings)
             {
                 _context = acontext;
                 _flattener = flattener;
@@ -215,6 +220,8 @@ namespace Kroeg.Server.Middleware
                 _deliveryService = deliveryService;
                 _user = user;
                 _collectionTools = collectionTools;
+                _notifier = notifier;
+                _tokenSettings = tokenSettings;
             }
 
             internal async Task<ASObject> Get(string url, IQueryCollection arguments)
@@ -244,11 +251,105 @@ namespace Kroeg.Server.Middleware
             public async Task EventStream(HttpContext context, string fullpath)
             {
                 var entity = await _mainStore.GetEntity(fullpath, false);
+                var authToken = context.Request.Query["authorization"];
+                if (authToken.Count == 0)
+                {
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsync("No authorization token provided");
+                    return;
+                }
 
-                if (entity.Type != "_inbox")
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var claims = tokenHandler.ValidateToken(authToken[0], _tokenSettings.ValidationParameters, out SecurityToken validatedToken);
+                var entityClaim = claims.FindFirstValue(JwtTokenSettings.ActorClaim);
+                if (entityClaim == null) return;
+                if (entity.Data["attributedTo"].TrueForAll(a => (string)a.Primitive != entityClaim))
+                {
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsync("Not authorized to view this item live");
+                    return;
+                }
+
+                if (entity.Type != "_inbox" && entity.Type != "_outbox")
+                {
+                    context.Response.StatusCode = 415;
+                    await context.Response.WriteAsync("Cannot view this item live!");
+                    return;
+                }
+
+
+                context.Response.ContentType = "text/event-stream";
+                context.Response.Headers.Add("X-Accel-Buffering", "no");
+                var tokenSource = new CancellationTokenSource();
+                ConcurrentQueue<string> toSend = new ConcurrentQueue<string>();
+
+                Action<string> subscriptionCall = (item) =>
+                {
+                    toSend.Enqueue(item);
+                    tokenSource.Cancel();
+                };
+
+                await _notifier.Subscribe($"collection/{fullpath}", subscriptionCall);
+                context.RequestAborted.Register(() => tokenSource.Cancel());
+
+                await context.Response.WriteAsync(": hello, world!\n");
+                await context.Response.Body.FlushAsync();
+
+                if (context.Request.Headers.ContainsKey("Last-Event-ID"))
+                {
+                    var lastEventId = context.Request.Headers["Last-Event-ID"];
+                    var location = await _context.CollectionItems.FirstOrDefaultAsync(a => a.CollectionId == fullpath && a.ElementId == lastEventId);
+                    if (location != null)
+                    {
+                        var itemsAfter = await _context.CollectionItems.Where(a => a.CollectionId == fullpath && a.CollectionItemId > location.CollectionItemId).ToListAsync();
+                        foreach (var item in itemsAfter)
+                            toSend.Enqueue(item.ElementId);
+                    }
+                }
+
+                try
+                {
+                    while (true)
+                    {
+                        if (toSend.Count == 0)
+                        {
+                            await context.Response.WriteAsync(":keepalive\n");
+                            await context.Response.Body.FlushAsync();
+                        }
+                        else
+                        {
+                            do
+                            {
+                                string item;
+                                var success = toSend.TryDequeue(out item);
+                                if (success)
+                                {
+                                    var stored = await _mainStore.GetEntity(item, false);
+                                    var unflattened = await _flattener.Unflatten(_mainStore, stored);
+                                    var serialized = unflattened.Serialize().ToString(Formatting.None);
+                                    await context.Response.WriteAsync($"id: {item}\ndata: {serialized}\n\n");
+                                    await context.Response.Body.FlushAsync();
+                                }
+                            } while (toSend.Count > 0);
+                        }
+                        byte[] buffer = new byte[128];
+                        try
+                        {
+                            await Task.Delay(15000, tokenSource.Token);
+                        } catch (TaskCanceledException)
+                        {
+                            if (context.RequestAborted.IsCancellationRequested) break;
+                        }
+                        tokenSource.Dispose();
+                        tokenSource = new CancellationTokenSource();
+                    }
+                } catch (Exception e)
                 {
 
                 }
+
+                await _notifier.Unsubscribe($"collection/{fullpath}", subscriptionCall);
+                context.Response.Body.Dispose();
             }
 
             private ASObject _getActor(APEntity entity)
@@ -378,6 +479,7 @@ namespace Kroeg.Server.Middleware
 
                         transaction.Commit();
 
+                        await _notifier.Notify("collection/" + inbox.Id, flattened.Id);
                         return flattened.Data;
                     }
                 }
@@ -455,6 +557,8 @@ namespace Kroeg.Server.Middleware
                     await _context.SaveChangesAsync();
 
                     transaction.Commit();
+
+                    await _notifier.Notify("collection/" + outbox.Id, flattened.Id);
 
                     return flattened.Data;
                 }

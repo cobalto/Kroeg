@@ -16,6 +16,8 @@ using Kroeg.Server.OStatusCompat;
 using Kroeg.Server.Services;
 using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
+using Kroeg.Server.Services.Notifiers.Redis;
+using Kroeg.Server.Services.Notifiers;
 
 namespace Kroeg.Server
 {
@@ -84,6 +86,17 @@ namespace Kroeg.Server
             {
                 EntityNames = Configuration.GetSection("EntityNames")
             });
+
+            var redis = Configuration.GetSection("Kroeg").GetValue<string>("Redis", null);
+            if (!string.IsNullOrEmpty(redis))
+            {
+                services.AddSingleton(new RedisNotifierBase(redis));
+                services.AddTransient<INotifier>((a) => ActivatorUtilities.CreateInstance<RedisNotifier>(a));
+            }
+            else
+            {
+                services.AddSingleton<INotifier>(new LocalNotifier());
+            }
 
             services.AddSingleton<BackgroundTaskQueuer>();
 

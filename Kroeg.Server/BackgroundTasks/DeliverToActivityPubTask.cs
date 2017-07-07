@@ -7,6 +7,7 @@ using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Newtonsoft.Json;
+using Kroeg.Server.Services;
 
 namespace Kroeg.Server.BackgroundTasks
 {
@@ -40,6 +41,7 @@ namespace Kroeg.Server.BackgroundTasks
             content.Headers.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
 
             var result = await hc.PostAsync(Data.TargetInbox, content);
+
             var resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode && (int)result.StatusCode / 100 == 5)
                 throw new Exception("Failed to deliver. Retrying later.");

@@ -60,7 +60,11 @@ namespace Kroeg.Server.BackgroundTasks
                 else
                 {
                     _logger.LogDebug($"Sleeping until {nextAction.NextAttempt}");
-                    await Task.Delay((int)(nextAction.NextAttempt - DateTime.Now).TotalMilliseconds, _cancellationTokenSource.Token);
+                    try
+                    {
+                        await Task.Delay((int)(nextAction.NextAttempt - DateTime.Now).TotalMilliseconds, _cancellationTokenSource.Token);
+                    }
+                    catch (TaskCanceledException) { /* nothing to do */ }
                 }
                 var tokenSource = _cancellationTokenSource;
                 _cancellationTokenSource = null;
