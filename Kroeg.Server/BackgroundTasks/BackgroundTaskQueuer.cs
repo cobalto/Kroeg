@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Kroeg.Server.Models;
 using Microsoft.Extensions.Logging;
+using Kroeg.Server.Services;
 
 namespace Kroeg.Server.BackgroundTasks
 {
@@ -14,20 +15,18 @@ namespace Kroeg.Server.BackgroundTasks
         private readonly APContext _context;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<BackgroundTaskQueuer> _logger;
+        private readonly INotifier _notifier;
 
-        public static BackgroundTaskQueuer Instance { get; private set; }
+        public static string BackgroundTaskPath = "backgroundtask:new";
 
-        public void NotifyUpdated()
-        {
-            _cancellationTokenSource?.Cancel();
-        }
-
-        public BackgroundTaskQueuer(APContext context, IServiceProvider serviceProvider, ILogger<BackgroundTaskQueuer> logger)
+        public BackgroundTaskQueuer(APContext context, IServiceProvider serviceProvider, ILogger<BackgroundTaskQueuer> logger, INotifier notifier)
         {
             _context = context;
             _serviceProvider = serviceProvider;
             _logger = logger;
-            Instance = this;
+            _notifier = notifier;
+
+            _notifier.Subscribe(BackgroundTaskPath, (a) => _cancellationTokenSource?.Cancel());
 
             _do();
         }
@@ -39,44 +38,45 @@ namespace Kroeg.Server.BackgroundTasks
             return tcs.Task;
         }
 
+        private async Task<int> _getSleepTime(DateTime? after = null)
+        {
+            var av = after ?? DateTime.MinValue;
+            var nextAction = await _context.EventQueue.OrderBy(a => a.NextAttempt).Where(a => a.NextAttempt > av).FirstOrDefaultAsync();
+            if (nextAction == null) return -1;
+            var retval = (int)(nextAction.NextAttempt - DateTime.Now).TotalMilliseconds;
+            return Math.Max(retval, 0);
+        }
+
         public async void _do()
         {
+            DateTime after = DateTime.MinValue;
             while (true)
             {
                 // set up the wait
-                _logger.LogDebug("Preparing to sleep...");
+                _cancellationTokenSource?.Dispose();
                 _cancellationTokenSource = new CancellationTokenSource();
-                var nextAction = await _context.EventQueue.OrderBy(a => a.NextAttempt).FirstOrDefaultAsync();
-                if (nextAction == null)
+                var sleepTime = await _getSleepTime(after);
+                if (sleepTime != 0)
                 {
-                    _logger.LogDebug("No new action, sleeping until next save");
-                    await _whenCanceled();
+                    try
+                    {
+                        await Task.Delay(sleepTime, _cancellationTokenSource.Token);
+                    }
+                    catch (TaskCanceledException) { }
                 }
-                else if (nextAction.NextAttempt < DateTime.Now.AddSeconds(2))
+                var nextAction = await _context.EventQueue.OrderBy(a => a.NextAttempt).Where(a => a.NextAttempt > after).FirstOrDefaultAsync();
+                _logger.LogDebug($"Next action: {nextAction?.Action ?? "nothing"}");
+                if (nextAction == null) continue;
+
+                if (await _notifier.Synchronize(BackgroundTaskPath + ":" + nextAction.Id + nextAction.NextAttempt.ToString()))
                 {
-                    _logger.LogDebug($"Next action is now; running {nextAction.Action}");
+                    // we won!
                     await BaseTask.Go(_context, nextAction, _serviceProvider);
                 }
                 else
                 {
-                    _logger.LogDebug($"Sleeping until {nextAction.NextAttempt}");
-                    try
-                    {
-                        await Task.Delay((int)(nextAction.NextAttempt - DateTime.Now).TotalMilliseconds, _cancellationTokenSource.Token);
-                    }
-                    catch (TaskCanceledException) { /* nothing to do */ }
+                    after = nextAction.NextAttempt;
                 }
-                var tokenSource = _cancellationTokenSource;
-                _cancellationTokenSource = null;
-                tokenSource.Dispose();
-
-                _logger.LogDebug("Woke up!");
-                nextAction = await _context.EventQueue.OrderBy(a => a.NextAttempt).FirstOrDefaultAsync();
-                _logger.LogDebug($"Next action: {nextAction?.Action ?? "nothing"}");
-                if (nextAction == null) continue;
-
-                // run the action
-                await BaseTask.Go(_context, nextAction, _serviceProvider);
             }
         }
     }

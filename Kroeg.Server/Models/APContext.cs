@@ -4,14 +4,18 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using Kroeg.Server.BackgroundTasks;
+using Kroeg.Server.Services;
 
 namespace Kroeg.Server.Models
 {
     public class APContext : IdentityDbContext<APUser>
     {
-        public APContext(DbContextOptions options)
+        private readonly INotifier _notifier;
+
+        public APContext(DbContextOptions options, INotifier notifier)
             : base(options)
         {
+            _notifier = notifier;
         }
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
@@ -22,7 +26,7 @@ namespace Kroeg.Server.Models
 
             if (newEventQueue)
             {
-                BackgroundTaskQueuer.Instance.NotifyUpdated();
+                await _notifier.Notify(BackgroundTaskQueuer.BackgroundTaskPath, "new");
             }
 
             return returnValue;

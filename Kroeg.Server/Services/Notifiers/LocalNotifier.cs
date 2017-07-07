@@ -31,5 +31,12 @@ namespace Kroeg.Server.Services.Notifiers
             _actions[path].Remove(toRun);
             await Task.Yield();
         }
+
+        public async Task<bool> Synchronize(string path)
+        {
+            // there's just one background task thread per application server
+            await Task.Yield();
+            return true;
+        }
     }
 }

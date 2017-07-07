@@ -9,10 +9,12 @@ namespace Kroeg.Server.Services.Notifiers.Redis
     public class RedisNotifier : INotifier
     {
         private readonly ISubscriber _subscriber;
+        private readonly IDatabaseAsync _database;
 
         public RedisNotifier(RedisNotifierBase notifierBase)
         {
             _subscriber = notifierBase.GetSubscriber();
+            _database = notifierBase.GetDatabase();
         }
 
         private Dictionary<Action<string>, Action<RedisChannel, RedisValue>> _data = new Dictionary<Action<string>, Action<RedisChannel, RedisValue>>();
@@ -33,6 +35,14 @@ namespace Kroeg.Server.Services.Notifiers.Redis
         public async Task Notify(string path, string val)
         {
             await _subscriber.PublishAsync(path, val);
+        }
+
+        public async Task<bool> Synchronize(string path)
+        {
+            if (await _database.StringIncrementAsync(path) != 1) return false;
+            await _database.KeyExpireAsync(path, DateTime.Now.AddMinutes(5));
+
+            return true;
         }
     }
 }

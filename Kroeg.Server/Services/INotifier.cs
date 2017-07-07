@@ -10,5 +10,7 @@ namespace Kroeg.Server.Services
         Task Subscribe(string path, Action<string> toRun);
         Task Unsubscribe(string path, Action<string> toRun);
         Task Notify(string path, string val);
+
+        Task<bool> Synchronize(string path);
     }
 }

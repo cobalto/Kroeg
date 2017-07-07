@@ -16,5 +16,6 @@ namespace Kroeg.Server.Services.Notifiers.Redis
         }
 
         public ISubscriber GetSubscriber() => _multiplexer.GetSubscriber();
+        public IDatabaseAsync GetDatabase() => _multiplexer.GetDatabase();
     }
 }
