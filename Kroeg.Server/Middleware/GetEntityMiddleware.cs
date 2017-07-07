@@ -423,11 +423,11 @@ namespace Kroeg.Server.Middleware
                 switch (original.Type)
                 {
                     case "_inbox":
-                        return await _serverToServer(context, original, @object);
+                        return await ServerToServer(original, @object);
                     case "_outbox":
                         var userId = original.Data["attributedTo"].FirstOrDefault() ?? original.Data["actor"].FirstOrDefault();
-                        if (userId == null || context.User.FindFirst(JwtTokenSettings.ActorClaim).Value ==
-                            (string) userId.Primitive) return await _clientToServer(context, original, @object);
+                        if (userId == null || _user.FindFirst(JwtTokenSettings.ActorClaim).Value ==
+                            (string) userId.Primitive) return await _clientToServer(original, @object);
                         throw new UnauthorizedAccessException("Cannot post to the outbox of another actor");
                 }
 
@@ -447,13 +447,18 @@ namespace Kroeg.Server.Middleware
 
             private static Semaphore _serverToServerMutex = new Semaphore(1, 1);
 
-            private async Task<ASObject> _serverToServer(HttpContext context, APEntity inbox, ASObject activity)
+            public async Task<ASObject> ServerToServer(APEntity inbox, ASObject activity)
             {
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) inbox.Data["attributedTo"].Single().Primitive;
                 var user = await _mainStore.GetEntity(userId, false);
 
-                var flattened = await _flattener.FlattenAndStore(stagingStore, activity);
+                APEntity flattened;
+
+                var id = (string) activity["id"].Single().Primitive;
+                flattened = await _mainStore.GetEntity(id, false);
+                if (flattened == null)
+                    flattened = await _flattener.FlattenAndStore(stagingStore, activity);
 
                 var sentBy = (string)activity["actor"].First().Primitive;
                 var blocks = await _mainStore.GetEntity((string) user.Data["blocks"].First().Primitive, false);
@@ -469,7 +474,7 @@ namespace Kroeg.Server.Middleware
                         foreach (var type in _serverToServerHandlers)
                         {
                             var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                                stagingStore, flattened, user, inbox, context.User);
+                                stagingStore, flattened, user, inbox, _user);
                             var handled = await handler.Handle();
                             flattened = handler.MainObject;
                             if (!handled) break;
@@ -507,7 +512,7 @@ namespace Kroeg.Server.Middleware
                 typeof(WebSubHandler)
             };
 
-            private async Task<ASObject> _clientToServer(HttpContext context, APEntity outbox, ASObject activity)
+            private async Task<ASObject> _clientToServer(APEntity outbox, ASObject activity)
             {
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) outbox.Data["attributedTo"].Single().Primitive;
@@ -548,7 +553,7 @@ namespace Kroeg.Server.Middleware
                     foreach (var type in _clientToServerHandlers)
                     {
                         var handler = (BaseHandler)ActivatorUtilities.CreateInstance(_serviceProvider, type,
-                            stagingStore, flattened, user, outbox, context.User);
+                            stagingStore, flattened, user, outbox, _user);
                         var handled = await handler.Handle();
                         flattened = handler.MainObject;
                         if (!handled) break;

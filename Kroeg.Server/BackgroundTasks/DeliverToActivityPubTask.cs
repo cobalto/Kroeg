@@ -8,6 +8,10 @@ using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Newtonsoft.Json;
 using Kroeg.Server.Services;
+using Kroeg.ActivityStreams;
+using Kroeg.Server.Middleware;
+using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims;
 
 namespace Kroeg.Server.BackgroundTasks
 {
@@ -21,14 +25,16 @@ namespace Kroeg.Server.BackgroundTasks
     {
         private readonly IEntityStore _entityStore;
         private readonly EntityFlattener _entityFlattener;
+        private readonly IServiceProvider _serviceProvider;
 
-        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener) : base(item)
+        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider) : base(item)
         {
             _entityStore = entityStore;
             _entityFlattener = entityFlattener;
+            _serviceProvider = serviceProvider;
         }
 
-        public override async Task Go()
+        public async Task PostToServer()
         {
             var entity = await _entityStore.GetEntity(Data.ObjectId, false);
             var unflattened = await _entityFlattener.Unflatten(_entityStore, entity);
@@ -45,6 +51,28 @@ namespace Kroeg.Server.BackgroundTasks
             var resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode && (int)result.StatusCode / 100 == 5)
                 throw new Exception("Failed to deliver. Retrying later.");
+        }
+
+        public override async Task Go()
+        {
+            var inbox = await _entityStore.GetEntity(Data.TargetInbox, false);
+            if (inbox.IsOwner && inbox.Type == "_inbox")
+            {
+                var item = await _entityStore.GetEntity(Data.ObjectId, false);
+
+                var claims = new ClaimsPrincipal();
+                var handler = ActivatorUtilities.CreateInstance<GetEntityMiddleware.GetEntityHandler>(_serviceProvider, claims);
+                try
+                {
+                    await handler.ServerToServer(inbox, item.Data);
+                }
+                catch (UnauthorizedAccessException) { }
+                catch (InvalidOperationException) { }
+            }
+            else
+            {
+                await PostToServer();
+            }
         }
     }
 }

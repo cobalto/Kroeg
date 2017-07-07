@@ -29,6 +29,7 @@ namespace Kroeg.Server.Middleware.Handlers.ServerToServer
 
             var toFollowOrLike = await EntityStore.GetEntity((string) toUndo.Data["object"].Single().Primitive, true);
             if (toFollowOrLike == null || !toFollowOrLike.IsOwner) return true; // can't undo side effects.
+            if ((MainObject.Type == "Follow" && Actor.Id != toFollowOrLike.Id) || (MainObject.Type != "Follow" && (string)toFollowOrLike.Data["attributedTo"].Single().Primitive != Actor.Id)) return true;
 
             if (MainObject.Type == "Follow")
             {

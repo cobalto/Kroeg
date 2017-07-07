@@ -25,6 +25,9 @@ namespace Kroeg.Server.Middleware.Handlers.ServerToServer
             var toFollowOrLike = await EntityStore.GetEntity((string) MainObject.Data["object"].Single().Primitive, false);
             if (toFollowOrLike == null || !toFollowOrLike.IsOwner) return true; // not going to update side effects now.
 
+            // sent to not the owner, so not updating!
+            if ((MainObject.Type == "Follow" && Actor.Id != toFollowOrLike.Id) || (MainObject.Type != "Follow" && (string)toFollowOrLike.Data["attributedTo"].Single().Primitive != Actor.Id)) return true;
+
             string collectionId = null, objectToAdd = null;
 
             switch (MainObject.Type)
