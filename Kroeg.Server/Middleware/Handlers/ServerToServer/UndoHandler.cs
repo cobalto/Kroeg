@@ -29,17 +29,22 @@ namespace Kroeg.Server.Middleware.Handlers.ServerToServer
 
             var toFollowOrLike = await EntityStore.GetEntity((string) toUndo.Data["object"].Single().Primitive, true);
             if (toFollowOrLike == null || !toFollowOrLike.IsOwner) return true; // can't undo side effects.
-            if ((MainObject.Type == "Follow" && Actor.Id != toFollowOrLike.Id) || (MainObject.Type != "Follow" && (string)toFollowOrLike.Data["attributedTo"].Single().Primitive != Actor.Id)) return true;
+            if ((toUndo.Type == "Follow" && Actor.Id != toFollowOrLike.Id) || (toUndo.Type != "Follow" && (string)toFollowOrLike.Data["attributedTo"].Single().Primitive != Actor.Id)) return true;
 
-            if (MainObject.Type == "Follow")
+            if (toUndo.Type == "Follow")
             {
                 collectionId = (string) toFollowOrLike.Data["followers"].SingleOrDefault()?.Primitive;
                 objectToAdd = (string) toFollowOrLike.Data["actor"].Single().Primitive;
             }
-            else if (MainObject.Type == "Like")
+            else if (toUndo.Type == "Like")
             {
-                collectionId = (string) toFollowOrLike.Data["likes"].SingleOrDefault()?.Primitive;
-                objectToAdd = MainObject.Id;
+                collectionId = (string)toFollowOrLike.Data["likes"].SingleOrDefault()?.Primitive;
+                objectToAdd = toUndo.Id;
+            }
+            else if (toUndo.Type == "Announce")
+            {
+                collectionId = (string)toFollowOrLike.Data["shares"].SingleOrDefault()?.Primitive;
+                objectToAdd = toUndo.Id;
             }
 
             if (collectionId == null) return true; // no way to store followers/likse
