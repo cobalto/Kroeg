@@ -5,8 +5,10 @@
 }
 
 @model Kroeg.Server.Controllers.SettingsController.BaseModel
-@foreach (var item in Model.Actors)
-{
-    <a href="@Url.Action("Edit", new { id = item.ActorId })">@item.ActorId</a><br/>
-}
-<a href="@Url.Action("NewActor")">New</a>
+<div class="list-group">
+    @foreach (var item in Model.Actors)
+    {
+        <a class="list-group-item list-group-item-action" href="@Url.Action("Edit", new { id = item.ActorId })">@item.ActorId</a>
+    }
+    <a class="list-group-item list-group-item-action" href="@Url.Action("NewActor")">New</a>
+</div>

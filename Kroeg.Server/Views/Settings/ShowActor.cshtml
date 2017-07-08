@@ -7,9 +7,9 @@
 @model Kroeg.Server.Controllers.SettingsController.EditActorModel
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
-@await Html.PartialAsync("Menu", Model.Menu)
-
-@section Header {}
+@section Menu {
+    @await Html.PartialAsync("Menu", Model.Menu)
+}
 
 <pre>@Model.Actor.Actor.Data.Serialize().ToString()
 </pre>
