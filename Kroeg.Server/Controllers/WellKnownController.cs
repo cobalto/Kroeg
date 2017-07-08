@@ -200,9 +200,11 @@ namespace Kroeg.Server.Controllers
         {
             Response.ContentType = "application/xrd+xml";
 
+            var domain = Request.Host.ToUriComponent();
+
             return Ok("<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
 "<XRD xmlns=\"http://docs.oasis-open.org/ns/xri/xrd-1.0\">" +
-$" <Link rel=\"lrdd\" type=\"application/jrd+json\" template=\"https://{_entityData.BaseDomain}/.well-known/webfinger?resource={{uri}}\"/>" +
+$" <Link rel=\"lrdd\" type=\"application/jrd+json\" template=\"https://{domain}/.well-known/webfinger?resource={{uri}}\"/>" +
 "</XRD>");
         }
     }

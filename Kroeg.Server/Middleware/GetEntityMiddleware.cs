@@ -143,7 +143,7 @@ namespace Kroeg.Server.Middleware
             {
                 if (context.Request.Method == "GET" || context.Request.Method == "HEAD")
                 {
-                    data = await handler.Get(fullpath, arguments);
+                    data = await handler.Get(fullpath, arguments, context);
                 }
                 else if (context.Request.Method == "POST" && data != null)
                 {
@@ -224,7 +224,7 @@ namespace Kroeg.Server.Middleware
                 _tokenSettings = tokenSettings;
             }
 
-            internal async Task<ASObject> Get(string url, IQueryCollection arguments)
+            internal async Task<ASObject> Get(string url, IQueryCollection arguments, HttpContext context)
             {
                 var store = _mainStore;
                 if (store is RetrievingEntityStore)
@@ -236,7 +236,7 @@ namespace Kroeg.Server.Middleware
                 if (entity.Type == "_blocks" && !entity.Data["attributedTo"].Any(a => (string)a.Primitive == userId)) throw new UnauthorizedAccessException("Blocks are private!");
                 if (entity.Type == "_blocked") throw new UnauthorizedAccessException("This collection is only used internally for optimization reasons");
                 if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, arguments);
-                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity);
+                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity, context);
                 var audience = DeliveryService.GetAudienceIds(entity.Data);
 
                 if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string)a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
@@ -345,16 +345,18 @@ namespace Kroeg.Server.Middleware
                 context.Response.Body.Dispose();
             }
 
-            private ASObject _getActor(APEntity entity)
+            private ASObject _getActor(APEntity entity, HttpContext context)
             {
                 var data = entity.Data;
 
+                var basePath = $"{context.Request.Protocol}://{context.Request.Host.ToUriComponent()}{_entityData.BasePath}";
+
                 var endpoints = new ASObject();
-                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(_entityData.BaseUri + "auth/oauth"));
-                endpoints.Replace("oauthTokenEndpoint", new ASTerm(_entityData.BaseUri + "auth/token"));
-                endpoints.Replace("settingsEndpoint", new ASTerm(_entityData.BaseUri + "settings/auth"));
+                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth"));
+                endpoints.Replace("oauthTokenEndpoint", new ASTerm(basePath + "auth/token"));
+                endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
                 endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
-                endpoints.Replace("relevantObjects", new ASTerm(_entityData.BaseUri + "settings/relevant"));
+                endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
                 endpoints.Replace("id", new ASTerm((string)null));
 
                 data.Replace("endpoints", new ASTerm(endpoints));

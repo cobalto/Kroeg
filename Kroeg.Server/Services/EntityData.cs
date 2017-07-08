@@ -22,6 +22,8 @@ namespace Kroeg.Server.Tools
 
         public string BaseUri => _kroegSection.GetValue<string>("BaseUri");
         public string BaseDomain => (new Uri(BaseUri)).Host;
+        public string BasePath => (new Uri(BaseUri)).AbsolutePath;
+
         public bool RewriteRequestScheme => _kroegSection.GetValue<bool>("RewriteRequestScheme");
         public bool UnflattenRemotely => _kroegSection.GetValue<bool>("UnflattenRemotely");
         public IConfiguration EntityNames { get; set; }
