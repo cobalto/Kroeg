@@ -317,8 +317,7 @@ namespace Kroeg.Server.Middleware
                     {
                         do
                         {
-                            string item;
-                            var success = toSend.TryDequeue(out item);
+                            var success = toSend.TryDequeue(out var item);
                             if (success)
                             {
                                 var stored = await _mainStore.GetEntity(item, false);
@@ -329,14 +328,15 @@ namespace Kroeg.Server.Middleware
                             }
                         } while (toSend.Count > 0);
                     }
-                    byte[] buffer = new byte[128];
                     try
                     {
                         await Task.Delay(15000, tokenSource.Token);
-                    } catch (TaskCanceledException)
+                    }
+                    catch (TaskCanceledException)
                     {
                         if (context.RequestAborted.IsCancellationRequested) break;
                     }
+
                     tokenSource.Dispose();
                     tokenSource = new CancellationTokenSource();
                 }
