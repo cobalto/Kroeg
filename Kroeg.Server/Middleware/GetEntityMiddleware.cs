@@ -349,7 +349,7 @@ namespace Kroeg.Server.Middleware
             {
                 var data = entity.Data;
 
-                var basePath = $"{context.Request.Protocol}://{context.Request.Host.ToUriComponent()}{_entityData.BasePath}";
+                var basePath = $"{context.Request.Scheme}://{context.Request.Host.ToUriComponent()}{_entityData.BasePath}";
 
                 var endpoints = new ASObject();
                 endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth"));
