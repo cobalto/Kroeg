@@ -228,7 +228,8 @@ namespace Kroeg.Server.Controllers
             public string client_id { get; set; }
         }
 
-        public class JsonError {
+        public class JsonError
+        {
             public string error { get; set; }
         }
 
@@ -256,81 +257,6 @@ namespace Kroeg.Server.Controllers
             {
                 return Json(new JsonError { error = "invalid_request" });
             }
-        }
-
-        [HttpGet("test")]
-        public async Task<IActionResult> TestAtomParser(string url)
-        {
-            var hc = new HttpClient();
-            var xd = XDocument.Parse(await hc.GetStringAsync(url));
-
-            var data = await _entryParser.Parse(xd, false, null);
-            return Ok(data.Serialize(true).ToString(Formatting.Indented));
-        }
-
-        [HttpGet("get")]
-        public async Task<IActionResult> GetId(string id)
-        {
-            var data = await _entityStore.GetEntity(id, true);
-            var ddata = await _entityFlattener.Unflatten(_entityStore, data, 10);
-            return Ok(ddata.Serialize(true).ToString(Formatting.Indented));
-        }
-
-        [HttpGet("getatom")]
-        public async Task<IActionResult> GetIdAtom(string id)
-        {
-            var data = await _entityStore.GetEntity(id, true);
-            var ser = await _entryGenerator.Build(data.Data);
-            return Ok(ser.ToString(SaveOptions.None));
-        }
-
-        [HttpGet("dtest")]
-        public async Task<IActionResult> TestAtomParserBackForth(string url)
-        {
-            var hc = new HttpClient();
-            var xd = XDocument.Parse(await hc.GetStringAsync(url));
-            var tmpStore = new StagingEntityStore(_entityStore);
-
-            var data = await _entryParser.Parse(xd, false, null);
-            var flattened = await _entityFlattener.FlattenAndStore(tmpStore, data);
-            var serialized = (await _entryGenerator.Build(flattened.Data)).ToString();
-            return Ok(serialized);
-        }
-
-        [HttpGet("actor"), Authorize]
-        public async Task<IActionResult> ChooseActor()
-        {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier).Value;
-
-            var userObj = await _context.Users.FirstAsync(a => a.Id == userId);
-            var actors = await _context.UserActorPermissions.Where(a => a.User == userObj).Include(a => a.Actor).ToListAsync();
-
-            return View(new ChooseActorModel { Actors = actors, User = userObj });
-        }
-
-        [HttpPost("actor"), ValidateAntiForgeryToken, Authorize]
-        public async Task<IActionResult> DoChooseActor(ChosenActorModel model)
-        {
-            var claims = new Claim[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, User.FindFirstValue(ClaimTypes.NameIdentifier)),
-                new Claim(JwtTokenSettings.ActorClaim, model.ActorID)
-            };
-            
-            var jwt = new JwtSecurityToken(
-                issuer: _tokenSettings.Issuer,
-                audience: _tokenSettings.Audience,
-                claims: claims,
-                notBefore: DateTime.UtcNow,
-                expires: DateTime.UtcNow.Add(_tokenSettings.ExpiryTime),
-                signingCredentials: _tokenSettings.Credentials
-                );
-
-            var encodedJwt = new JwtSecurityTokenHandler().WriteToken(jwt);
-
-            var data = await _entityStore.GetEntity(model.ActorID, false);
-
-            return Ok(encodedJwt + "\n\n" + data.Data.Serialize().ToString(Formatting.Indented));
         }
     }
 }
