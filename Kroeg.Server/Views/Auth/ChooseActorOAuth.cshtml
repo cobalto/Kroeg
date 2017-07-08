@@ -3,27 +3,31 @@
 *@
 @{
     ViewBag.Title = "Choose actor";
+    Layout = "_LayoutBootstrap";
 }
-
-@section Header {}
-
 
 @using Newtonsoft.Json
 @model Kroeg.Server.Controllers.AuthController.OAuthActorModel
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 
-<form asp-controller="Auth" asp-action="DoChooseActorOAuth" method="post">
-    <ul>
-        @foreach (var actor in Model.Actors)
-        {
-            <li>
-                <input type="radio" name="ActorID" id="ActorID-@actor.Actor.Id" value="@actor.Actor.Id" /> <label for="ActorID-@actor.Actor.Id">@actor.Actor.Data["name"].First().Primitive (@actor.Actor.Id)</label>
-                <label for="ActorID-@actor.Actor.Id"><pre>@actor.Actor.Data.Serialize().ToString(Formatting.Indented)</pre></label>
-            </li>
-        }
-    </ul>
-    <input type="submit" value="Get token"/>
-    <input type="hidden" asp-for="ResponseType" value="@Model.ResponseType" />
-    <input type="hidden" asp-for="RedirectUri" value="@Model.RedirectUri" />
-    <input type="hidden" asp-for="State" value="@Model.State" />
-</form>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 push-md-3">
+            <h1>&nbsp;</h1>
+            <h1>Choose an actor</h1>
+            <form asp-controller="Auth" asp-action="DoChooseActorOAuth" method="post">
+                <div class="list-group">
+                    @foreach (var actor in Model.Actors)
+                    {
+                        <button class="list-group-item" name="ActorID" value="@actor.Actor.Id">
+                            @actor.Actor.Data["name"].First().Primitive (@("@")@actor.Actor.Data["preferredUsername"].First().Primitive)
+                        </button>
+                    }
+                </div>
+                <input type="hidden" asp-for="ResponseType" value="@Model.ResponseType" />
+                <input type="hidden" asp-for="RedirectUri" value="@Model.RedirectUri" />
+                <input type="hidden" asp-for="State" value="@Model.State" />
+            </form>
+        </div>
+    </div>
+</div>
