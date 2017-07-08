@@ -163,6 +163,10 @@ namespace Kroeg.Server.Tools
             if (parentId != null && result.StartsWith("+"))
                 return parentId + "/" + result.Substring(1).ToLower();
 
+            result = result.ToLower();
+            if (Uri.IsWellFormedUriString(result, UriKind.Absolute))
+                return result;
+
             return BaseUri + result.ToLower(); 
         }
 
