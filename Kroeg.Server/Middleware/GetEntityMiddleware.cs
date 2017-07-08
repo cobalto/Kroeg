@@ -242,7 +242,6 @@ namespace Kroeg.Server.Middleware
                 if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string)a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
                 {
                     throw new UnauthorizedAccessException("No access");
-                    return null; // unauthorized
                 }
 
                 return entity.Data;
@@ -307,45 +306,39 @@ namespace Kroeg.Server.Middleware
                     }
                 }
 
-                try
+                while (true)
                 {
-                    while (true)
+                    if (toSend.Count == 0)
                     {
-                        if (toSend.Count == 0)
-                        {
-                            await context.Response.WriteAsync(":keepalive\n");
-                            await context.Response.Body.FlushAsync();
-                        }
-                        else
-                        {
-                            do
-                            {
-                                string item;
-                                var success = toSend.TryDequeue(out item);
-                                if (success)
-                                {
-                                    var stored = await _mainStore.GetEntity(item, false);
-                                    var unflattened = await _flattener.Unflatten(_mainStore, stored);
-                                    var serialized = unflattened.Serialize().ToString(Formatting.None);
-                                    await context.Response.WriteAsync($"id: {item}\ndata: {serialized}\n\n");
-                                    await context.Response.Body.FlushAsync();
-                                }
-                            } while (toSend.Count > 0);
-                        }
-                        byte[] buffer = new byte[128];
-                        try
-                        {
-                            await Task.Delay(15000, tokenSource.Token);
-                        } catch (TaskCanceledException)
-                        {
-                            if (context.RequestAborted.IsCancellationRequested) break;
-                        }
-                        tokenSource.Dispose();
-                        tokenSource = new CancellationTokenSource();
+                        await context.Response.WriteAsync(":keepalive\n");
+                        await context.Response.Body.FlushAsync();
                     }
-                } catch (Exception e)
-                {
-
+                    else
+                    {
+                        do
+                        {
+                            string item;
+                            var success = toSend.TryDequeue(out item);
+                            if (success)
+                            {
+                                var stored = await _mainStore.GetEntity(item, false);
+                                var unflattened = await _flattener.Unflatten(_mainStore, stored);
+                                var serialized = unflattened.Serialize().ToString(Formatting.None);
+                                await context.Response.WriteAsync($"id: {item}\ndata: {serialized}\n\n");
+                                await context.Response.Body.FlushAsync();
+                            }
+                        } while (toSend.Count > 0);
+                    }
+                    byte[] buffer = new byte[128];
+                    try
+                    {
+                        await Task.Delay(15000, tokenSource.Token);
+                    } catch (TaskCanceledException)
+                    {
+                        if (context.RequestAborted.IsCancellationRequested) break;
+                    }
+                    tokenSource.Dispose();
+                    tokenSource = new CancellationTokenSource();
                 }
 
                 await _notifier.Unsubscribe($"collection/{fullpath}", subscriptionCall);

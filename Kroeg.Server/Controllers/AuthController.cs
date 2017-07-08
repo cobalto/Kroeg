@@ -179,7 +179,7 @@ namespace Kroeg.Server.Controllers
         }
 
         [HttpPost("oauth"), ValidateAntiForgeryToken]
-        public async Task<IActionResult> DoChooseActorOAuth(OAuthChosenActorModel model)
+        public IActionResult DoChooseActorOAuth(OAuthChosenActorModel model)
         {
             if (!ModelState.IsValid) return View("ChooseActorOAuth", model);
             var exp = TimeSpan.FromSeconds(model.Expiry);
@@ -240,7 +240,7 @@ namespace Kroeg.Server.Controllers
         }
 
         [HttpPost("token")]
-        public async Task<IActionResult> OAuthToken(OAuthTokenModel model)
+        public IActionResult OAuthToken(OAuthTokenModel model)
         {
             if (model.grant_type != "authorization_code") return Json(new JsonError { error = "invalid_request" });
             try
