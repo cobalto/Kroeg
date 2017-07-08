@@ -85,6 +85,7 @@ namespace Kroeg.Server.Controllers
             public string ResponseType { get; set; }
             public string RedirectUri { get; set; }
             public string State { get; set; }
+            public int Expiry { get; set; }
         }
 
         public class OAuthChosenActorModel
@@ -93,6 +94,7 @@ namespace Kroeg.Server.Controllers
             public string ResponseType { get; set; }
             public string RedirectUri { get; set; }
             public string State { get; set; }
+            public int Expiry { get; set; }
         }
 
         public class ChosenActorModel
@@ -173,13 +175,16 @@ namespace Kroeg.Server.Controllers
             var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
             var actors = await _context.UserActorPermissions.Where(a => a.User == user).Include(a => a.Actor).ToListAsync();
 
-            return View("ChooseActorOAuth", new OAuthActorModel { User = user, Actors = actors, ResponseType = response_type, RedirectUri = redirect_uri, State = state });
+            return View("ChooseActorOAuth", new OAuthActorModel { User = user, Actors = actors, ResponseType = response_type, RedirectUri = redirect_uri, State = state, Expiry = (int) _tokenSettings.ExpiryTime.TotalSeconds});
         }
 
         [HttpPost("oauth"), ValidateAntiForgeryToken]
         public async Task<IActionResult> DoChooseActorOAuth(OAuthChosenActorModel model)
         {
             if (!ModelState.IsValid) return View("ChooseActorOAuth", model);
+            var exp = TimeSpan.FromSeconds(model.Expiry);
+            if (exp > _tokenSettings.ExpiryTime)
+                exp = _tokenSettings.ExpiryTime;
 
             var claims = new Claim[]
             {
@@ -192,7 +197,7 @@ namespace Kroeg.Server.Controllers
                 audience: _tokenSettings.Audience,
                 claims: claims,
                 notBefore: DateTime.UtcNow,
-                expires: DateTime.UtcNow.Add(_tokenSettings.ExpiryTime),
+                expires: DateTime.UtcNow.Add(exp),
                 signingCredentials: _tokenSettings.Credentials
                 );
 
@@ -201,9 +206,9 @@ namespace Kroeg.Server.Controllers
             if (model.ResponseType == "token")
             {
                 if (model.RedirectUri.Contains("#"))
-                    return RedirectPermanent(model.RedirectUri + $"&access_token={encodedJwt}&token_type=bearer&expires_in={(int) _tokenSettings.ExpiryTime.TotalSeconds}&state={model.State}");
+                    return RedirectPermanent(model.RedirectUri + $"&access_token={encodedJwt}&token_type=bearer&expires_in={(int) exp.TotalSeconds}&state={model.State}");
                 else
-                    return RedirectPermanent(model.RedirectUri + $"#access_token={encodedJwt}&token_type=bearer&expires_in={(int) _tokenSettings.ExpiryTime.TotalSeconds}&state={model.State}");
+                    return RedirectPermanent(model.RedirectUri + $"#access_token={encodedJwt}&token_type=bearer&expires_in={(int) exp.TotalSeconds}&state={model.State}");
             }
             else if (model.ResponseType == "code")
             {

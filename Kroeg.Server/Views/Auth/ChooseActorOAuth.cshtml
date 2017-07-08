@@ -24,6 +24,19 @@
                         </button>
                     }
                 </div>
+                <br/>
+                <div class="form-inline">
+                    <label for="Expiry">Expiry:</label>
+                    <select class="form-control" name="Expiry" id="Expiry">
+                        <option value="3600">1 hour</option>
+                        <option value="86400">1 day</option>
+                        @if (Model.Expiry >= 604800)
+                        {
+                            <option value="604800">1 week</option>
+                        }
+                        <option value="@Model.Expiry" selected>Maximum (@(TimeSpan.FromSeconds(Model.Expiry).ToString()))</option>
+                    </select>
+                </div>
                 <input type="hidden" asp-for="ResponseType" value="@Model.ResponseType" />
                 <input type="hidden" asp-for="RedirectUri" value="@Model.RedirectUri" />
                 <input type="hidden" asp-for="State" value="@Model.State" />
