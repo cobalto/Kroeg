@@ -148,6 +148,13 @@ namespace Kroeg.Server.Tools
             return result.ToString();
         }
 
+        private static string _append(string a, string b)
+        {
+            if (a.EndsWith("/"))
+                return a + b;
+            return a + "/" + b;
+        }
+
         public async Task<string> UriFor(IEntityStore store, ASObject @object, string category = null, string parentId = null)
         {
             var types = @object["type"].Select(a => (string)a.Primitive).ToList();
@@ -163,7 +170,7 @@ namespace Kroeg.Server.Tools
             var format = _getFormat(types, category, parentId != null);
             var result = await _parseUriFormat(store, @object.Serialize(), format);
             if (parentId != null && result.StartsWith("+"))
-                return parentId + "/" + result.Substring(1).ToLower();
+                return _append(parentId, result.Substring(1).ToLower());
 
             result = result.ToLower();
             if (Uri.IsWellFormedUriString(result, UriKind.Absolute))
