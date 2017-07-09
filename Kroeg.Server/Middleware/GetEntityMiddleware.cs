@@ -352,8 +352,8 @@ namespace Kroeg.Server.Middleware
                 var basePath = $"{context.Request.Scheme}://{context.Request.Host.ToUriComponent()}{_entityData.BasePath}";
 
                 var endpoints = new ASObject();
-                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth"));
-                endpoints.Replace("oauthTokenEndpoint", new ASTerm(basePath + "auth/token"));
+                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth?id=" + Uri.EscapeDataString(entity.Id)));
+                endpoints.Replace("oauthTokenEndpoint", new ASTerm(basePath + "auth/token?"));
                 endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
                 endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
                 endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));

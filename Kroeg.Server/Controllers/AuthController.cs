@@ -72,29 +72,15 @@ namespace Kroeg.Server.Controllers
             public string Redirect { get; set; }
         }
 
-        public class ChooseActorModel
-        {
-            public APUser User { get; set; }
-            public List<UserActorPermission> Actors { get; set; }
-        }
-
         public class OAuthActorModel
         {
-            public APUser User { get; set; }
-            public List<UserActorPermission> Actors { get; set; }
-            public string ResponseType { get; set; }
-            public string RedirectUri { get; set; }
-            public string State { get; set; }
-            public int Expiry { get; set; }
-        }
-
-        public class OAuthChosenActorModel
-        {
+            public APEntity Actor { get; set; }
             public string ActorID { get; set; }
             public string ResponseType { get; set; }
             public string RedirectUri { get; set; }
             public string State { get; set; }
             public int Expiry { get; set; }
+            public string Deny { get; set; }
         }
 
         public class ChosenActorModel
@@ -127,7 +113,7 @@ namespace Kroeg.Server.Controllers
         }
 
         [HttpPost("register"), ValidateAntiForgeryToken]
-        public async Task<IActionResult> DoREgister(RegisterViewModel model)
+        public async Task<IActionResult> DoRegister(RegisterViewModel model)
         {
             if (!_configuration.GetSection("Kroeg").GetValue<bool>("CanRegister")) return NotFound();
             var apuser = new APUser
@@ -167,24 +153,48 @@ namespace Kroeg.Server.Controllers
         }
 
         [HttpGet("oauth")]
-        public async Task<IActionResult> DoOAuthToken(string response_type, string redirect_uri, string state)
+        public async Task<IActionResult> DoOAuthToken(string id, string response_type, string redirect_uri, string state)
         {
             if (response_type != "token" && response_type != "code") return RedirectPermanent(_appendToUri(redirect_uri, "error=unsupported_response_type"));
             if (User == null || User.FindFirstValue(ClaimTypes.NameIdentifier) == null) return RedirectToAction("Login", new { redirect = Request.Path.Value + Request.QueryString });
 
-            var user = await _userManager.FindByIdAsync(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var actors = await _context.UserActorPermissions.Where(a => a.User == user).Include(a => a.Actor).ToListAsync();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var actor = await _entityStore.GetEntity(id, false);
+            var hasAccess = await _context.UserActorPermissions.AnyAsync(a => a.UserId == userId && a.ActorId == id);
+            if (!hasAccess || actor == null || !actor.IsOwner)
+            {
+                if (response_type == "token")
+                    if (redirect_uri.Contains("#"))
+                        return RedirectPermanent(redirect_uri + "&error=access_denied&state=" + Uri.EscapeDataString(state));
+                    else
+                        return RedirectPermanent(redirect_uri + "#error=access_denied&state=" + Uri.EscapeDataString(state));
+                else
+                    return RedirectPermanent(_appendToUri(redirect_uri, "error=access_denied&state=" + Uri.EscapeDataString(state)));
+            }
 
-            return View("ChooseActorOAuth", new OAuthActorModel { User = user, Actors = actors, ResponseType = response_type, RedirectUri = redirect_uri, State = state, Expiry = (int) _tokenSettings.ExpiryTime.TotalSeconds});
+            return View("ChooseActorOAuth", new OAuthActorModel { Actor = actor, ResponseType = response_type, RedirectUri = redirect_uri, State = state, Expiry = (int) _tokenSettings.ExpiryTime.TotalSeconds});
         }
 
         [HttpPost("oauth"), ValidateAntiForgeryToken]
-        public IActionResult DoChooseActorOAuth(OAuthChosenActorModel model)
+        public async Task<IActionResult> DoChooseActorOAuth(OAuthActorModel model)
         {
-            if (!ModelState.IsValid) return View("ChooseActorOAuth", model);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var actor = await _entityStore.GetEntity(model.ActorID, false);
+            var hasAccess = await _context.UserActorPermissions.AnyAsync(a => a.UserId == userId && a.ActorId == model.ActorID);
+            model.Actor = actor;
+            if (!hasAccess || !ModelState.IsValid) return View("ChooseActorOAuth", model);
             var exp = TimeSpan.FromSeconds(model.Expiry);
             if (exp > _tokenSettings.ExpiryTime)
                 exp = _tokenSettings.ExpiryTime;
+
+            if (!string.IsNullOrWhiteSpace(model.Deny))
+                if (model.ResponseType == "token")
+                    if (model.RedirectUri.Contains("#"))
+                        return RedirectPermanent(model.RedirectUri + "&error=access_denied&state=" + Uri.EscapeDataString(model.State));
+                    else
+                        return RedirectPermanent(model.RedirectUri + "#error=access_denied&state=" + Uri.EscapeDataString(model.State));
+                else
+                    return RedirectPermanent(_appendToUri(model.RedirectUri, "error=access_denied&state=" + Uri.EscapeDataString(model.State)));
 
             var claims = new Claim[]
             {
@@ -206,15 +216,15 @@ namespace Kroeg.Server.Controllers
             if (model.ResponseType == "token")
             {
                 if (model.RedirectUri.Contains("#"))
-                    return RedirectPermanent(model.RedirectUri + $"&access_token={encodedJwt}&token_type=bearer&expires_in={(int) exp.TotalSeconds}&state={model.State}");
+                    return RedirectPermanent(model.RedirectUri + $"&access_token={encodedJwt}&token_type=bearer&expires_in={(int) exp.TotalSeconds}&state={Uri.EscapeDataString(model.State)}");
                 else
-                    return RedirectPermanent(model.RedirectUri + $"#access_token={encodedJwt}&token_type=bearer&expires_in={(int) exp.TotalSeconds}&state={model.State}");
+                    return RedirectPermanent(model.RedirectUri + $"#access_token={encodedJwt}&token_type=bearer&expires_in={(int) exp.TotalSeconds}&state={Uri.EscapeDataString(model.State)}");
             }
             else if (model.ResponseType == "code")
             {
                 encodedJwt = _dataProtector.Protect(encodedJwt);
 
-                return RedirectPermanent(_appendToUri(model.RedirectUri, $"code={Uri.EscapeDataString(encodedJwt)}&state={model.State}"));
+                return RedirectPermanent(_appendToUri(model.RedirectUri, $"code={Uri.EscapeDataString(encodedJwt)}&state={Uri.EscapeDataString(model.State)}"));
             }
 
             return StatusCode(500);
