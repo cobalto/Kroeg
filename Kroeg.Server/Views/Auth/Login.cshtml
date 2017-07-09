@@ -18,6 +18,7 @@
                 <form asp-controller="Auth" asp-action="DoLogin" method="post">
                     <label asp-for="Username">Username: </label> <input class="form-control" asp-for="Username" type="text" /><br />
                     <label asp-for="Password">Password: </label> <input class="form-control" asp-for="Password" type="password" /><br />
+                    <input type="hidden" name="Redirect" value="@Model.Redirect" />
                     <input type="submit" value="Submit" class="btn btn-default" />
                 </form>
             </div>

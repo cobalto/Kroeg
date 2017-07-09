@@ -94,6 +94,13 @@ namespace Kroeg.Server.Controllers
             return View(new LoginViewModel { Redirect = redirect });
         }
 
+        [HttpGet("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            return RedirectToAction(nameof(Login));
+        }
+
         [HttpPost("login"), ValidateAntiForgeryToken]
         public async Task<IActionResult> DoLogin(LoginViewModel model)
         {
