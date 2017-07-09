@@ -21,12 +21,18 @@ namespace Kroeg.Server.Models
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             var newEventQueue = ChangeTracker.HasChanges() && ChangeTracker.Entries<EventQueueItem>().Any(a => a.State == EntityState.Added);
+            var collectionItemEntries = ChangeTracker.Entries<CollectionItem>().Where(a => a.State == EntityState.Added).Select(a => a.Entity).ToList();
 
             var returnValue = await base.SaveChangesAsync(cancellationToken);
 
             if (newEventQueue)
             {
                 await _notifier.Notify(BackgroundTaskQueuer.BackgroundTaskPath, "new");
+            }
+
+            foreach (var collectionItemEntry in collectionItemEntries)
+            {
+                await _notifier.Notify("collection/" + collectionItemEntry.CollectionId, collectionItemEntry.ElementId);
             }
 
             return returnValue;

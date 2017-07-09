@@ -269,7 +269,7 @@ namespace Kroeg.Server.Middleware
                     return;
                 }
 
-                if (entity.Type != "_inbox" && entity.Type != "_outbox")
+                if ((!entity.Type.StartsWith("_") && entity.Type != "OrderedCollection") || !entity.IsOwner)
                 {
                     context.Response.StatusCode = 415;
                     await context.Response.WriteAsync("Cannot view this item live!");
