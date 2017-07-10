@@ -181,6 +181,7 @@ namespace Kroeg.Server.Middleware
                 }
                 else
                 {
+                    context.Request.Method = "GET";
                     context.Request.Path = "/render";
                     context.Items["object"] = APEntity.From(data);
                     await _next(context);

@@ -50,7 +50,7 @@ namespace Kroeg.Server.BackgroundTasks
             var content = new StringContent(serialized, Encoding.UTF8);
             content.Headers.ContentType = new MediaTypeHeaderValue("application/ld+json");
             content.Headers.ContentType.Parameters.Add(new NameValueHeaderValue("profile", "\"https://www.w3.org/ns/activitystreams\""));
-            content.Headers.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+            hc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
             hc.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             var result = await hc.PostAsync(Data.TargetInbox, content);
