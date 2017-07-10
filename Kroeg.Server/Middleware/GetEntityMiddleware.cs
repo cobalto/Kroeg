@@ -454,10 +454,15 @@ namespace Kroeg.Server.Middleware
 
                 APEntity flattened;
 
+                var subjectUri = new Uri(subject);
+                var prefix = $"{subjectUri.Scheme}://{subjectUri.Host}/";
+
                 var id = (string) activity["id"].Single().Primitive;
                 flattened = await _mainStore.GetEntity(id, false);
                 if (flattened == null)
                     flattened = await _flattener.FlattenAndStore(stagingStore, activity);
+
+                stagingStore.TrimDown(prefix); // remove all staging entities that may be faked
 
                 var sentBy = (string)activity["actor"].First().Primitive;
                 if (subject != null && sentBy != subject)

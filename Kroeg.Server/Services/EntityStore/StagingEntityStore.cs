@@ -37,6 +37,12 @@ namespace Kroeg.Server.Services.EntityStore
             await Bypass.CommitChanges();
         }
 
+        public void TrimDown(string prefix)
+        {
+            foreach (var item in _entities.Keys.ToList())
+                if (!item.StartsWith(prefix)) _entities.Remove(item);
+        }
+
         public IEntityStore Bypass { get; }
     }
 }

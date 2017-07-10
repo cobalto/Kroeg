@@ -118,7 +118,7 @@ MUST
 
 SHOULD
 
-* [ ] Don't trust content received from a server other than the content's origin without some form of verification.
+* [x] Don't trust content received from a server other than the content's origin without some form of verification.
 * [x] Recurse through to, bto, cc, bcc, audience object values to determine whether/where to forward according to criteria in 8.1.2
   * [x] Limit recursion in this process
 * Update
@@ -131,7 +131,7 @@ SHOULD
   * [x] Remove the object from the Collection specified in the target property, unless not allowed per requirements in 8.6
 * Like
   * [x] Perform appropriate indication of the like being performed (See 8.8 for examples)
-* [ ] Validate the content they receive to avoid content spoofing attacks.
+* [x] Validate the content they receive to avoid content spoofing attacks.
 
 ##### Inbox Retrieval
 
