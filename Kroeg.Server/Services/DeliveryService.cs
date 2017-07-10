@@ -165,7 +165,7 @@ namespace Kroeg.Server.Services
                 public _signatureProvider(SecurityKey key, string algorithm) : base(key, algorithm)
                 {
                     _key = key as JsonWebKey;
-                    if (_key.Alg == JsonWebAlgorithmsKeyTypes.EllipticCurve)
+                    if (_key.Kty == JsonWebAlgorithmsKeyTypes.EllipticCurve)
                     {
                         var ecpa = new ECParameters
                         {
