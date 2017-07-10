@@ -49,7 +49,7 @@ namespace Kroeg.Server.Services
 
         public async Task QueueDeliveryForEntity(APEntity entity, int collectionId, bool forwardOnly = false)
         {
-            var audienceInbox = await _buildAudienceInbox(entity.Data, forward: forwardOnly);
+            var audienceInbox = await _buildAudienceInbox(entity.Data, forward: forwardOnly, actor: false);
             // Is public post?
             if (audienceInbox.Item2 && !forwardOnly)
             {
@@ -205,7 +205,7 @@ namespace Kroeg.Server.Services
             return new HashSet<string>(targetIds);
         }
 
-        private async Task<Tuple<HashSet<string>, bool, HashSet<string>>> _buildAudienceInbox(ASObject @object, int depth = 3, bool forward = false)
+        private async Task<Tuple<HashSet<string>, bool, HashSet<string>>> _buildAudienceInbox(ASObject @object, int depth = 3, bool forward = false, bool actor = true)
         {
             var targetIds = new List<string>();
 
@@ -214,6 +214,8 @@ namespace Kroeg.Server.Services
             targetIds.AddRange(@object["cc"].Select(a => (string)a.Primitive));
             targetIds.AddRange(@object["bcc"].Select(a => (string)a.Primitive));
             targetIds.AddRange(@object["audience"].Select(a => (string)a.Primitive));
+
+            if (!actor) targetIds.Remove((string)@object["actor"].First().Primitive);
 
             bool isPublic = targetIds.Contains("https://www.w3.org/ns/activitystreams#Public");
             targetIds.Remove("https://www.w3.org/ns/activitystreams#Public");

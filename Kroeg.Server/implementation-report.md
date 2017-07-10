@@ -91,13 +91,13 @@ MUST
 * [x] Performs delivery on all Activities posted to the outbox
 * [x] Utilizes `to`, `bto`, `cc`, and `bcc` to determine delivery recipients.
 * [x] Provides an `id` all Activities sent to other servers, unless the activity is intentionally transient.
-* [ ] Dereferences delivery targets with the submitting user's credentials
+* [x] Dereferences delivery targets with the submitting user's credentials
 * [x] Delivers to all items in recipients that are Collections or OrderedCollections
   * [x] Applies the above, recursively if the Collection contains Collections, and limits recursion depth >= 1
 * [x] Delivers activity with 'object' property if the Activity type is one of Create, Update, Delete, Follow, Add, Remove, Like, Block, Undo
 * [x] Delivers activity with 'target' property if the Activity type is one of Add, Remove
 * [x] Deduplicates final recipient list
-* [ ] Does not deliver to recipients which are the same as the actor of the Activity being notified about
+* [x] Does not deliver to recipients which are the same as the actor of the Activity being notified about
 
 SHOULD
 

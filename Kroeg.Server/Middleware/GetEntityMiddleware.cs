@@ -239,6 +239,15 @@ namespace Kroeg.Server.Middleware
                 if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity, context);
                 var audience = DeliveryService.GetAudienceIds(entity.Data);
 
+                if (userId == null && !audience.Contains("https://www.w3.org/ns/activitystreams#Public"))
+                {
+                    var authToken = context.Request.Headers["Authorization"];
+                    if (authToken.Count == 0) throw new UnauthorizedAccessException("You need authorization!");
+
+                    var jwt = authToken.First().Split(' ')[1];
+                    userId = await _deliveryService.VerifyJWS(url, jwt);
+                }
+
                 if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string)a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
                 {
                     throw new UnauthorizedAccessException("No access");
