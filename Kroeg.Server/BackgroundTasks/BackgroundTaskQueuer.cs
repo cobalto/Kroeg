@@ -49,6 +49,8 @@ namespace Kroeg.Server.BackgroundTasks
 
         public async void _do()
         {
+            await Task.Delay(10000);
+
             DateTime after = DateTime.MinValue;
             while (true)
             {

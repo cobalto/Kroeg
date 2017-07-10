@@ -125,7 +125,7 @@ namespace Kroeg.Server.Tools
                 return entity.Data;
 
             var @object = entity.Data;
-            if (_configuration.IsActor(@object))
+            if (_configuration.IsActor(@object) && entity.IsOwner)
                 @object = _getEndpoints(entity);
 
             var myid = (string)@object["id"].First().Primitive;
