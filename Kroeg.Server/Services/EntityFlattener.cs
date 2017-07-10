@@ -135,6 +135,9 @@ namespace Kroeg.Server.Tools
             if (myid != null)
                 alreadyMapped[myid] = entity;
 
+            @object["bto"].Clear();
+            @object["bcc"].Clear();
+
             foreach (var kv in @object)
             {
                 foreach (var value in kv.Value)
