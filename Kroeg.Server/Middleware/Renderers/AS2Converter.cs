@@ -53,6 +53,8 @@ namespace Kroeg.Server.Middleware.Renderers
             public async Task Render(HttpRequest request, HttpResponse response, ASObject toRender)
             {
                 response.ContentType = ConverterHelpers.GetBestMatch(_factory.MimeTypes, request.Headers["Accept"]);
+                if (toRender["type"].Any(a => (string)a.Primitive == "Tombstone"))
+                    response.StatusCode = 410;
 
                 var depth = Math.Min(int.Parse(request.Query["depth"].FirstOrDefault() ?? "3"), 5);
 
