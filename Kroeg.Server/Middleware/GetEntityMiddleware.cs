@@ -236,7 +236,7 @@ namespace Kroeg.Server.Middleware
                 if (entity.Type == "_blocks" && !entity.Data["attributedTo"].Any(a => (string)a.Primitive == userId)) throw new UnauthorizedAccessException("Blocks are private!");
                 if (entity.Type == "_blocked") throw new UnauthorizedAccessException("This collection is only used internally for optimization reasons");
                 if (entity.Type == "OrderedCollection" || entity.Type.StartsWith("_")) return await _getCollection(entity, arguments);
-                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return _getActor(entity, context);
+                if (entity.IsOwner && _entityData.IsActor(entity.Data)) return entity.Data;
                 var audience = DeliveryService.GetAudienceIds(entity.Data);
 
                 if (userId == null && !audience.Contains("https://www.w3.org/ns/activitystreams#Public"))
@@ -352,25 +352,6 @@ namespace Kroeg.Server.Middleware
 
                 await _notifier.Unsubscribe($"collection/{fullpath}", subscriptionCall);
                 context.Response.Body.Dispose();
-            }
-
-            private ASObject _getActor(APEntity entity, HttpContext context)
-            {
-                var data = entity.Data;
-
-                var basePath = $"{context.Request.Scheme}://{context.Request.Host.ToUriComponent()}{_entityData.BasePath}";
-
-                var endpoints = new ASObject();
-                endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth?id=" + Uri.EscapeDataString(entity.Id)));
-                endpoints.Replace("oauthTokenEndpoint", new ASTerm(basePath + "auth/token?"));
-                endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
-                endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
-                endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
-                endpoints.Replace("jwks", new ASTerm(basePath + "auth/jwks?id=" + Uri.EscapeDataString(entity.Id)));
-                endpoints.Replace("id", new ASTerm((string)null));
-
-                data.Replace("endpoints", new ASTerm(endpoints));
-                return data;
             }
 
             private async Task<ASObject> _getCollection(APEntity entity, IQueryCollection arguments)

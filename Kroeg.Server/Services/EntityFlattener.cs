@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
 using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
+using Microsoft.AspNetCore.Http;
+using System;
 
 namespace Kroeg.Server.Tools
 {
@@ -11,7 +13,7 @@ namespace Kroeg.Server.Tools
     {
         private readonly EntityData _configuration;
 
-        public EntityFlattener(EntityData configuration)
+        public EntityFlattener(EntityData configuration, IHttpContextAccessor _accessor)
         {
             _configuration = configuration;
         }
@@ -56,6 +58,27 @@ namespace Kroeg.Server.Tools
             "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience", "endpoints"
         };
 
+
+        private ASObject _getEndpoints(APEntity entity)
+        {
+            var data = entity.Data;
+            var idu = new Uri(entity.Id);
+
+            var basePath = $"{idu.Scheme}://{idu.Host}{_configuration.BasePath}";
+
+            var endpoints = new ASObject();
+            endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth?id=" + Uri.EscapeDataString(entity.Id)));
+            endpoints.Replace("oauthTokenEndpoint", new ASTerm(basePath + "auth/token?"));
+            endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
+            endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
+            endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
+            endpoints.Replace("jwks", new ASTerm(basePath + "auth/jwks?id=" + Uri.EscapeDataString(entity.Id)));
+            endpoints.Replace("id", new ASTerm((string)null));
+
+            data.Replace("endpoints", new ASTerm(endpoints));
+            return data;
+        }
+
         private async Task<APEntity> _flatten(IEntityStore store, ASObject @object, IDictionary<string, APEntity> entities, string parentId = null)
         {
 
@@ -93,14 +116,18 @@ namespace Kroeg.Server.Tools
             return entity;
         }
 
+
         private static HashSet<string> _avoidFlatteningTypes = new HashSet<string> { "OrderedCollection", "Collection", "_replies", "_likes", "_shares", "_:LazyLoad" };
 
-        private static async Task<ASObject> _unflatten(IEntityStore store, APEntity entity, int depth, IDictionary<string, APEntity> alreadyMapped, bool remote)
+        private async Task<ASObject> _unflatten(IEntityStore store, APEntity entity, int depth, IDictionary<string, APEntity> alreadyMapped, bool remote)
         {
             if (depth == 0)
                 return entity.Data;
 
             var @object = entity.Data;
+            if (_configuration.IsActor(@object))
+                @object = _getEndpoints(entity);
+
             var myid = (string)@object["id"].First().Primitive;
             if (myid != null)
                 alreadyMapped[myid] = entity;
