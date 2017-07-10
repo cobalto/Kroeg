@@ -226,6 +226,7 @@ namespace Kroeg.Server.Services
             };
 
             var signingCreds = new SigningCredentials(key.Key, SecurityAlgorithms.EcdsaSha256);
+            signingCreds.Key.KeyId = key.Id;
             signingCreds.CryptoProviderFactory = new _cryptoProviderFactory();
 
             var jwt = new JwtSecurityToken(
