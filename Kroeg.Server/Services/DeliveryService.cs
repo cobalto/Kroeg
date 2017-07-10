@@ -121,7 +121,7 @@ namespace Kroeg.Server.Services
                     jwk.Kty = "EC";
                     jwk.Crv = "P-256";
                     jwk.Use = JsonWebKeyUseNames.Sig;
-                    jwk.KeyId = Guid.NewGuid().ToString().Substring(0, 8);
+                    jwk.Kid = Guid.NewGuid().ToString().Substring(0, 8);
 
                     var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
                     var parms = ec.ExportParameters(true);
