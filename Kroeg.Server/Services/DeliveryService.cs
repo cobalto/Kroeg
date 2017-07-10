@@ -94,7 +94,7 @@ namespace Kroeg.Server.Services
                     if (jwks == null) return null;
 
                     var keys = await _getKey(jwks);
-                    var jwkey = keys.Keys.FirstOrDefault(a => a.KeyId == kid);
+                    var jwkey = keys.Keys.FirstOrDefault(a => a.Kid == kid);
 
                     if (jwkey == null) return null; // couldn't find key
 
@@ -129,7 +129,7 @@ namespace Kroeg.Server.Services
                     jwk.Y = Base64UrlEncoder.Encode(parms.Q.Y);
                     jwk.D = Base64UrlEncoder.Encode(parms.D);
 
-                    key = new JWKEntry { Id = jwk.KeyId, Owner = actor, SerializedData = JsonConvert.SerializeObject(jwk) };
+                    key = new JWKEntry { Id = jwk.Kid, Owner = actor, SerializedData = JsonConvert.SerializeObject(jwk) };
                     _context.JsonWebKeys.Add(key);
                     await _context.SaveChangesAsync();
                 }

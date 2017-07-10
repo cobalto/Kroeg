@@ -23,6 +23,7 @@ using Kroeg.Server.Salmon;
 using Microsoft.Extensions.Configuration;
 using Kroeg.Server.Services;
 using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json.Linq;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -280,6 +281,12 @@ namespace Kroeg.Server.Controllers
             }
         }
 
+        private class _jwkKeyset
+        {
+            [JsonProperty("keys")]
+            public List<JObject> Keys { get; set; }
+        }
+
         [HttpGet("jwks")]
         public async Task<IActionResult> GetJsonWebKeys(string id)
         {
@@ -288,10 +295,15 @@ namespace Kroeg.Server.Controllers
             var key = await _deliveryService.GetKey(actor);
             var deser = key.Key;
             deser.D = null;
-            var keyset = new JsonWebKeySet();
-            keyset.Keys.Add(deser);
 
-            return Content(JsonConvert.SerializeObject(keyset), "application/json");
+            var jo = JObject.FromObject(deser);
+            foreach (var ancestor in jo.Properties().ToList())
+            {
+                if (ancestor.Name.ToLower() != ancestor.Name) ancestor.Remove();
+            }
+
+
+            return Content(JsonConvert.SerializeObject(new _jwkKeyset { Keys = new List<JObject> { jo } }), "application/json");
         }
     }
 }
