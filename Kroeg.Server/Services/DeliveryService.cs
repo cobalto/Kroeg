@@ -138,6 +138,81 @@ namespace Kroeg.Server.Services
             }
         }
 
+        private class _cryptoProviderFactory : CryptoProviderFactory
+        {
+            private class _signatureProvider : SignatureProvider
+            {
+                private JsonWebKey _key;
+                private ECDsa _ecdsa;
+
+                private static Dictionary<string, ECCurve> _curves = new Dictionary<string, ECCurve>
+                {
+                    [JsonWebKeyECTypes.P256] = ECCurve.NamedCurves.nistP256,
+                    [JsonWebKeyECTypes.P384] = ECCurve.NamedCurves.nistP384,
+                    [JsonWebKeyECTypes.P521] = ECCurve.NamedCurves.nistP521,
+                };
+
+                private static Dictionary<string, HashAlgorithmName> _hashes = new Dictionary<string, HashAlgorithmName>
+                {
+                    [SecurityAlgorithms.EcdsaSha256] = HashAlgorithmName.SHA256,
+                    [SecurityAlgorithms.EcdsaSha256Signature] = HashAlgorithmName.SHA256,
+                    [SecurityAlgorithms.EcdsaSha384] = HashAlgorithmName.SHA384,
+                    [SecurityAlgorithms.EcdsaSha384Signature] = HashAlgorithmName.SHA384,
+                    [SecurityAlgorithms.EcdsaSha512] = HashAlgorithmName.SHA512,
+                    [SecurityAlgorithms.EcdsaSha512Signature] = HashAlgorithmName.SHA512
+                };
+
+                public _signatureProvider(SecurityKey key, string algorithm) : base(key, algorithm)
+                {
+                    _key = key as JsonWebKey;
+                    if (_key.Alg == JsonWebAlgorithmsKeyTypes.EllipticCurve)
+                    {
+                        var ecpa = new ECParameters
+                        {
+                            Curve = _curves[_key.Crv],
+                            D = _key.D != null ? Base64UrlEncoder.DecodeBytes(_key.D) : null,
+                            Q = new ECPoint
+                            {
+                                X = Base64UrlEncoder.DecodeBytes(_key.X),
+                                Y = Base64UrlEncoder.DecodeBytes(_key.Y)
+                            }
+                        };
+
+                        _ecdsa = ECDsa.Create(ecpa);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Algorithm not yet supported");
+                    }
+                }
+
+                public override byte[] Sign(byte[] input)
+                {
+                    return _ecdsa.SignData(input, _hashes[Algorithm]);
+                }
+
+                public override bool Verify(byte[] input, byte[] signature)
+                {
+                    return _ecdsa.VerifyData(input, signature, _hashes[Algorithm]);
+                }
+
+                protected override void Dispose(bool disposing)
+                {
+                    _ecdsa.Dispose();
+                }
+            }
+
+            public override SignatureProvider CreateForSigning(SecurityKey key, string algorithm)
+            {
+                return new _signatureProvider(key, algorithm);
+            }
+
+            public override SignatureProvider CreateForVerifying(SecurityKey key, string algorithm)
+            {
+                return new _signatureProvider(key, algorithm);
+            }
+        }
+
         public async Task<string> BuildFederatedJWS(APEntity subject, string inbox)
         {
             var key = await GetKey(subject);
@@ -151,6 +226,7 @@ namespace Kroeg.Server.Services
             };
 
             var signingCreds = new SigningCredentials(key.Key, SecurityAlgorithms.EcdsaSha256);
+            signingCreds.CryptoProviderFactory = new _cryptoProviderFactory();
 
             var jwt = new JwtSecurityToken(
                 audience: dom,
@@ -185,6 +261,7 @@ namespace Kroeg.Server.Services
                 RequireSignedTokens = true,
                 ValidateAudience = false,
                 ValidateIssuer = false,
+                CryptoProviderFactory = new _cryptoProviderFactory()
             };
 
             return handler.ValidateToken(serialized, tokenValidation, out var ser) != null ? originId : null;

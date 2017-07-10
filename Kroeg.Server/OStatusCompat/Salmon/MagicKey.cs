@@ -90,9 +90,6 @@ namespace Kroeg.Server.Salmon
             var rsa = RSA.Create();
             rsa.KeySize = 2048;
 
-            if (rsa.KeySize != 2048)
-                rsa = new RSACryptoServiceProvider(2048);
-
             return new MagicKey(JsonConvert.SerializeObject(RSAKeyParms.From(rsa.ExportParameters(true))));
         }
 
