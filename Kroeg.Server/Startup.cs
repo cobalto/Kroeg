@@ -116,8 +116,7 @@ namespace Kroeg.Server
                 var dbservice = provider.GetRequiredService<DatabaseEntityStore>();
                 var flattener = provider.GetRequiredService<EntityFlattener>();
                 var httpAccessor = provider.GetService<IHttpContextAccessor>();
-                var deliveryService = provider.GetService<DeliveryService>();
-                return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor, deliveryService);
+                return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor);
             });
         }
 

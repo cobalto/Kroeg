@@ -11,6 +11,7 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 using Kroeg.Server.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kroeg.Server.Services.EntityStore
 {
@@ -19,17 +20,15 @@ namespace Kroeg.Server.Services.EntityStore
         public IEntityStore Next { get; }
 
         private readonly EntityFlattener _entityFlattener;
-        private readonly DeliveryService _deliveryService;
         private readonly IServiceProvider _serviceProvider;
         private readonly HttpContext _context;
 
-        public RetrievingEntityStore(IEntityStore next, EntityFlattener entityFlattener, IServiceProvider serviceProvider, IHttpContextAccessor contextAccessor, DeliveryService deliveryService)
+        public RetrievingEntityStore(IEntityStore next, EntityFlattener entityFlattener, IServiceProvider serviceProvider, IHttpContextAccessor contextAccessor)
         {
             Next = next;
             _entityFlattener = entityFlattener;
             _serviceProvider = serviceProvider;
             _context = contextAccessor?.HttpContext;
-            _deliveryService = deliveryService;
         }
 
         public async Task<APEntity> GetEntity(string id, bool doRemote)
@@ -62,8 +61,9 @@ namespace Kroeg.Server.Services.EntityStore
 
             if (_context != null)
             {
+                var deliveryService = _serviceProvider.GetRequiredService<DeliveryService>();
                 var user = await Next.GetEntity(_context.User.FindFirstValue(JwtTokenSettings.ActorClaim), false);
-                var jwt = await _deliveryService.BuildFederatedJWS(user, id);
+                var jwt = await deliveryService.BuildFederatedJWS(user, id);
                 htc.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
             }
 
