@@ -112,9 +112,7 @@ namespace Kroeg.Server
             services.AddTransient<AtomEntryGenerator>();
             services.AddTransient<IEntityStore>((provider) =>
             {
-                var dbservice = provider.GetRequiredService<DatabaseEntityStore>();
-                var flattener = provider.GetRequiredService<EntityFlattener>();
-                return new RetrievingEntityStore(dbservice, flattener, provider);
+                return ActivatorUtilities.CreateInstance<RetrievingEntityStore>(provider);
             });
         }
 
