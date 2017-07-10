@@ -65,6 +65,17 @@ namespace Kroeg.Server.Middleware
                 }
             }
 
+            if (context.Request.Method == "OPTIONS" && ConverterHelpers.GetBestMatch(_converters[0].MimeTypes, context.Request.Headers["Accept"]) != null)
+            {
+                context.Response.StatusCode = 200;
+                context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");
+                context.Response.Headers.Add("Access-Control-Allow-Headers", "Authorization");
+                context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, POST");
+                context.Response.Headers.Add("Access-Control-Allow-Origin", context.Request.Headers["Origin"]);
+                context.Response.Headers.Add("Vary", "Origin");
+                return;
+            }
+
             if (context.Request.Headers["Accept"].Contains("text/event-stream"))
             {
                 await handler.EventStream(context, fullpath);
@@ -138,10 +149,10 @@ namespace Kroeg.Server.Middleware
             }
 
             var arguments = context.Request.Query;
-
+            
             try
             {
-                if (context.Request.Method == "GET" || context.Request.Method == "HEAD")
+                if (context.Request.Method == "GET" || context.Request.Method == "HEAD" || context.Request.Method == "OPTIONS")
                 {
                     data = await handler.Get(fullpath, arguments, context);
                 }
@@ -166,6 +177,7 @@ namespace Kroeg.Server.Middleware
 
             if (data != null)
             {
+
                 if (context.Request.Method == "HEAD")
                 {
                     context.Response.StatusCode = 200;
