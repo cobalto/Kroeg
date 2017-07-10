@@ -28,7 +28,7 @@ namespace Kroeg.Server.Services.EntityStore
             Next = next;
             _entityFlattener = entityFlattener;
             _serviceProvider = serviceProvider;
-            _context = contextAccessor.HttpContext;
+            _context = contextAccessor?.HttpContext;
             _deliveryService = deliveryService;
         }
 

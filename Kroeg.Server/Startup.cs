@@ -18,6 +18,7 @@ using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Kroeg.Server.Services.Notifiers.Redis;
 using Kroeg.Server.Services.Notifiers;
+using Microsoft.AspNetCore.Http;
 
 namespace Kroeg.Server
 {
@@ -112,7 +113,11 @@ namespace Kroeg.Server
             services.AddTransient<AtomEntryGenerator>();
             services.AddTransient<IEntityStore>((provider) =>
             {
-                return ActivatorUtilities.CreateInstance<RetrievingEntityStore>(provider);
+                var dbservice = provider.GetRequiredService<DatabaseEntityStore>();
+                var flattener = provider.GetRequiredService<EntityFlattener>();
+                var httpAccessor = provider.GetService<IHttpContextAccessor>();
+                var deliveryService = provider.GetService<DeliveryService>();
+                return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor, deliveryService);
             });
         }
 
