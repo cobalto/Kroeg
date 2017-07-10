@@ -12,6 +12,7 @@ using Kroeg.ActivityStreams;
 using Kroeg.Server.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
+using System.Linq;
 
 namespace Kroeg.Server.BackgroundTasks
 {
@@ -26,18 +27,23 @@ namespace Kroeg.Server.BackgroundTasks
         private readonly IEntityStore _entityStore;
         private readonly EntityFlattener _entityFlattener;
         private readonly IServiceProvider _serviceProvider;
+        private readonly DeliveryService _deliveryService;
 
-        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider) : base(item)
+        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider, DeliveryService deliveryService) : base(item)
         {
             _entityStore = entityStore;
             _entityFlattener = entityFlattener;
             _serviceProvider = serviceProvider;
+            _deliveryService = deliveryService;
         }
 
         public async Task PostToServer()
         {
             var entity = await _entityStore.GetEntity(Data.ObjectId, false);
+            var owner = await _entityStore.GetEntity((string) entity.Data["actor"].First().Primitive, false);
             var unflattened = await _entityFlattener.Unflatten(_entityStore, entity);
+
+            var token = await _deliveryService.BuildFederatedJWS(owner, Data.TargetInbox);
 
             var hc = new HttpClient();
             var serialized = unflattened.Serialize(true).ToString(Formatting.None);
@@ -45,6 +51,7 @@ namespace Kroeg.Server.BackgroundTasks
             content.Headers.ContentType = new MediaTypeHeaderValue("application/ld+json");
             content.Headers.ContentType.Parameters.Add(new NameValueHeaderValue("profile", "\"https://www.w3.org/ns/activitystreams\""));
             content.Headers.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+            hc.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
             var result = await hc.PostAsync(Data.TargetInbox, content);
 
@@ -56,7 +63,7 @@ namespace Kroeg.Server.BackgroundTasks
         public override async Task Go()
         {
             var inbox = await _entityStore.GetEntity(Data.TargetInbox, false);
-            if (inbox.IsOwner && inbox.Type == "_inbox")
+            if (inbox.IsOwner && inbox.Type == "_inbox" && false) // temp hack
             {
                 var item = await _entityStore.GetEntity(Data.ObjectId, false);
 

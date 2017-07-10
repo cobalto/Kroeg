@@ -21,6 +21,8 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Kroeg.Server.Salmon;
 using Microsoft.Extensions.Configuration;
+using Kroeg.Server.Services;
+using Microsoft.IdentityModel.Tokens;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -40,8 +42,9 @@ namespace Kroeg.Server.Controllers
         private readonly EntityData _entityConfiguration;
         private readonly IDataProtector _dataProtector;
         private readonly IConfigurationRoot _configuration;
+        private readonly DeliveryService _deliveryService;
 
-        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider, IConfigurationRoot configuration)
+        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider, IConfigurationRoot configuration, DeliveryService deliveryService)
         {
             _context = context;
             _userManager = userManager;
@@ -54,6 +57,7 @@ namespace Kroeg.Server.Controllers
             _entityConfiguration = entityConfiguration;
             _dataProtector = dataProtectionProvider.CreateProtector("OAuth tokens");
             _configuration = configuration;
+            _deliveryService = deliveryService;
         }
 
         public class LoginViewModel
@@ -274,6 +278,20 @@ namespace Kroeg.Server.Controllers
             {
                 return Json(new JsonError { error = "invalid_request" });
             }
+        }
+
+        [HttpGet("jwks")]
+        public async Task<IActionResult> GetJsonWebKeys(string id)
+        {
+            var actor = await _entityStore.GetEntity(id, false);
+            if (actor == null || !actor.IsOwner) return NotFound();
+            var key = await _deliveryService.GetKey(actor);
+            var deser = key.Key;
+            deser.D = null;
+            var keyset = new JsonWebKeySet();
+            keyset.Keys.Add(deser);
+
+            return Content(JsonConvert.SerializeObject(keyset), "application/json");
         }
     }
 }

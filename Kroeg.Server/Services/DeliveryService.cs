@@ -9,6 +9,12 @@ using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using Microsoft.IdentityModel.Tokens;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
+using Kroeg.Server.Configuration;
 
 namespace Kroeg.Server.Services
 {
@@ -18,6 +24,7 @@ namespace Kroeg.Server.Services
         private readonly EntityData _configuration;
         private readonly CollectionTools _collectionTools;
         private readonly IEntityStore _store;
+        private readonly JwtTokenSettings _tokenSettings;
 
         public DeliveryService(APContext context, CollectionTools collectionTools, EntityData configuration, IEntityStore store)
         {
@@ -56,6 +63,131 @@ namespace Kroeg.Server.Services
                 _queueSalmonDelivery(salmon, entity);
 
             await _context.SaveChangesAsync();
+        }
+
+        private async Task<JsonWebKeySet> _getKey(string url)
+        {
+            var hc = new HttpClient();
+            return JsonConvert.DeserializeObject<JsonWebKeySet>(await hc.GetStringAsync(url));
+        }
+
+        public async Task<JWKEntry> GetKey(APEntity actor, string kid = null)
+        {
+            if (!actor.IsOwner)
+            {
+                if (kid == null) return null; // can't do that for remote actors
+
+                var key = await _context.JsonWebKeys.FirstOrDefaultAsync(a => a.Owner == actor && a.Id == kid);
+                if (key == null)
+                {
+                    // well here we go
+
+                    var endpoints = actor.Data["endpoints"].FirstOrDefault();
+                    if (endpoints == null) return null;
+                    ASObject endpointsData;
+                    if (endpoints.Primitive != null)
+                        endpointsData = (await _store.GetEntity((string)endpoints.Primitive, true)).Data;
+                    else
+                        endpointsData = endpoints.SubObject;
+
+                    var jwks = (string) endpointsData["jwks"].FirstOrDefault()?.Primitive; // not actually an entity!
+                    if (jwks == null) return null;
+
+                    var keys = await _getKey(jwks);
+                    var jwkey = keys.Keys.FirstOrDefault(a => a.KeyId == kid);
+
+                    if (jwkey == null) return null; // couldn't find key
+
+                    key = new JWKEntry
+                    {
+                        Owner = actor,
+                        Id = kid,
+                        SerializedData = JsonConvert.SerializeObject(jwkey)
+                    };
+
+                    _context.JsonWebKeys.Add(key);
+                    await _context.SaveChangesAsync();
+                }
+
+                return key;
+            }
+            else
+            {
+                var key = await _context.JsonWebKeys.FirstOrDefaultAsync(a => a.Owner == actor);
+                if (key == null)
+                {
+                    var jwk = new JsonWebKey();
+                    jwk.KeyOps.Add("sign");
+                    jwk.Kty = "EC";
+                    jwk.Crv = "P-256";
+                    jwk.Use = JsonWebKeyUseNames.Sig;
+                    jwk.KeyId = Guid.NewGuid().ToString().Substring(0, 8);
+
+                    var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+                    var parms = ec.ExportParameters(true);
+                    jwk.X = Base64UrlEncoder.Encode(parms.Q.X);
+                    jwk.Y = Base64UrlEncoder.Encode(parms.Q.Y);
+                    jwk.D = Base64UrlEncoder.Encode(parms.D);
+
+                    key = new JWKEntry { Id = jwk.KeyId, Owner = actor, SerializedData = JsonConvert.SerializeObject(jwk) };
+                    _context.JsonWebKeys.Add(key);
+                    await _context.SaveChangesAsync();
+                }
+
+                return key;
+            }
+        }
+
+        public async Task<string> BuildFederatedJWS(APEntity subject, string inbox)
+        {
+            var key = await GetKey(subject);
+
+            var subUri = new Uri(inbox);
+            var dom = $"{subUri.Scheme}://{subUri.Host}";
+
+            var claims = new Claim[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, subject.Id)
+            };
+
+            var signingCreds = new SigningCredentials(key.Key, SecurityAlgorithms.EcdsaSha256);
+
+            var jwt = new JwtSecurityToken(
+                audience: dom,
+                claims: claims,
+                notBefore: DateTime.UtcNow,
+                expires: DateTime.UtcNow.Add(TimeSpan.FromMinutes(10)),
+                signingCredentials: signingCreds
+                );
+
+            return new JwtSecurityTokenHandler().WriteToken(jwt);
+        }
+
+        public async Task<string> VerifyJWS(string inbox, string serialized)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(serialized);
+
+            var subUri = new Uri(inbox);
+            var dom = $"{subUri.Scheme}://{subUri.Host}";
+
+            if (jwt.Header.Kid == null) return null;
+            if (!jwt.Audiences.Contains(dom)) return null;
+
+            var originId = jwt.Subject;
+            var originEntity = await _store.GetEntity(originId, true);
+            var verifyKey = await GetKey(originEntity, jwt.Header.Kid);
+            if (verifyKey == null) return null;
+
+            var tokenValidation = new TokenValidationParameters()
+            {
+                IssuerSigningKey = verifyKey.Key,
+                RequireSignedTokens = true,
+                ValidateAudience = false,
+                ValidateIssuer = false,
+            };
+
+            return handler.ValidateToken(serialized, tokenValidation, out var ser) != null ? originId : null;
         }
 
         public static HashSet<string> GetAudienceIds(ASObject @object)

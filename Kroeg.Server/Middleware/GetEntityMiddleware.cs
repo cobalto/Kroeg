@@ -357,6 +357,7 @@ namespace Kroeg.Server.Middleware
                 endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
                 endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
                 endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
+                endpoints.Replace("jwks", new ASTerm(basePath + "auth/jwks?id=" + Uri.EscapeDataString(entity.Id)));
                 endpoints.Replace("id", new ASTerm((string)null));
 
                 data.Replace("endpoints", new ASTerm(endpoints));
@@ -418,7 +419,10 @@ namespace Kroeg.Server.Middleware
                 switch (original.Type)
                 {
                     case "_inbox":
-                        return await ServerToServer(original, @object);
+                        var jwt = context.Request.Headers["Authorization"].First().Split(' ')[1];
+                        var subjectId = await _deliveryService.VerifyJWS(fullpath, jwt);
+                        if (subjectId == null) throw new UnauthorizedAccessException("federation requires JWS");
+                        return await ServerToServer(original, @object, subjectId);
                     case "_outbox":
                         var userId = original.Data["attributedTo"].FirstOrDefault() ?? original.Data["actor"].FirstOrDefault();
                         if (userId == null || _user.FindFirst(JwtTokenSettings.ActorClaim).Value ==
@@ -442,7 +446,7 @@ namespace Kroeg.Server.Middleware
 
             private static Semaphore _serverToServerMutex = new Semaphore(1, 1);
 
-            public async Task<ASObject> ServerToServer(APEntity inbox, ASObject activity)
+            public async Task<ASObject> ServerToServer(APEntity inbox, ASObject activity, string subject = null)
             {
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) inbox.Data["attributedTo"].Single().Primitive;
@@ -456,6 +460,9 @@ namespace Kroeg.Server.Middleware
                     flattened = await _flattener.FlattenAndStore(stagingStore, activity);
 
                 var sentBy = (string)activity["actor"].First().Primitive;
+                if (subject != null && sentBy != subject)
+                    throw new UnauthorizedAccessException("Invalid authorization header for this subject!");
+
                 var blocks = await _mainStore.GetEntity((string) user.Data["blocks"].First().Primitive, false);
                 if (await _collectionTools.Contains((string)blocks.Data["_blocked"].First().Primitive, sentBy))
                     throw new UnauthorizedAccessException("You are blocked.");

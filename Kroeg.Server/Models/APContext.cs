@@ -18,6 +18,14 @@ namespace Kroeg.Server.Models
             _notifier = notifier;
         }
 
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+
+            builder.Entity<JWKEntry>()
+                .HasKey(a => new { a.Id, a.OwnerId });
+        }
+
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             var newEventQueue = ChangeTracker.HasChanges() && ChangeTracker.Entries<EventQueueItem>().Any(a => a.State == EntityState.Added);
@@ -63,5 +71,6 @@ namespace Kroeg.Server.Models
         public DbSet<SalmonKey> SalmonKeys { get; set; }
         public DbSet<WebsubSubscription> WebsubSubscriptions { get; set; }
         public DbSet<WebSubClient> WebSubClients { get; set; }
+        public DbSet<JWKEntry> JsonWebKeys { get; set; }
     }
 }
