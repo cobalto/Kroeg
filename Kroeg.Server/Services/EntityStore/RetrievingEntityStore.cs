@@ -79,7 +79,7 @@ namespace Kroeg.Server.Services.EntityStore
             ASObject data = null;
             foreach (var converter in converters)
             {
-                if (converter.CanParse && ConverterHelpers.GetBestMatch(converter.MimeTypes, response.Content.Headers.ContentType.MediaType) != null)
+                if (converter.CanParse && ConverterHelpers.GetBestMatch(converter.MimeTypes, response.Content.Headers.ContentType.ToString()) != null)
                 {
                     data = await converter.Build(_serviceProvider, null).Parse(await response.Content.ReadAsStreamAsync());
                     break;

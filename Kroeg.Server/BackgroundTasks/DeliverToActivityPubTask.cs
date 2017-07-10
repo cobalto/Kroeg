@@ -63,7 +63,7 @@ namespace Kroeg.Server.BackgroundTasks
         public override async Task Go()
         {
             var inbox = await _entityStore.GetEntity(Data.TargetInbox, false);
-            if (inbox.IsOwner && inbox.Type == "_inbox")
+            if (inbox != null && inbox.IsOwner && inbox.Type == "_inbox")
             {
                 var item = await _entityStore.GetEntity(Data.ObjectId, false);
 
