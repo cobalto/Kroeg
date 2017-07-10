@@ -44,7 +44,6 @@ namespace Kroeg.Server.BackgroundTasks
             var unflattened = await _entityFlattener.Unflatten(_entityStore, entity);
 
             var token = await _deliveryService.BuildFederatedJWS(owner, Data.TargetInbox);
-            var tset = await _deliveryService.VerifyJWS(Data.TargetInbox, token);
 
             var hc = new HttpClient();
             var serialized = unflattened.Serialize(true).ToString(Formatting.None);

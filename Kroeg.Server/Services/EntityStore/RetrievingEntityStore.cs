@@ -63,8 +63,11 @@ namespace Kroeg.Server.Services.EntityStore
             {
                 var deliveryService = _serviceProvider.GetRequiredService<DeliveryService>();
                 var user = await Next.GetEntity(_context.User.FindFirstValue(JwtTokenSettings.ActorClaim), false);
-                var jwt = await deliveryService.BuildFederatedJWS(user, id);
-                htc.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
+                if (user != null)
+                {
+                    var jwt = await deliveryService.BuildFederatedJWS(user, id);
+                    htc.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
+                }
             }
 
             var response = await htc.GetAsync(loadUrl);
