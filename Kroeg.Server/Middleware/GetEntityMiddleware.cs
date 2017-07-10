@@ -458,9 +458,12 @@ namespace Kroeg.Server.Middleware
                 if (subject != null && sentBy != subject)
                     throw new UnauthorizedAccessException("Invalid authorization header for this subject!");
 
-                var blocks = await _mainStore.GetEntity((string) user.Data["blocks"].First().Primitive, false);
-                if (await _collectionTools.Contains((string)blocks.Data["_blocked"].First().Primitive, sentBy))
-                    throw new UnauthorizedAccessException("You are blocked.");
+                if (user.Data["blocks"].Any())
+                {
+                    var blocks = await _mainStore.GetEntity((string)user.Data["blocks"].First().Primitive, false);
+                    if (await _collectionTools.Contains((string)blocks.Data["_blocked"].First().Primitive, sentBy))
+                        throw new UnauthorizedAccessException("You are blocked.");
+                }
 
                 _serverToServerMutex.WaitOne();
 
