@@ -75,6 +75,7 @@ namespace Kroeg.Server.Tools
             endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
             endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
             endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
+            endpoints.Replace("proxyUrl", new ASTerm(basePath + "auth/proxy"));
             endpoints.Replace("jwks", new ASTerm(basePath + "auth/jwks?id=" + Uri.EscapeDataString(entity.Id)));
             endpoints.Replace("id", new ASTerm((string)null));
 

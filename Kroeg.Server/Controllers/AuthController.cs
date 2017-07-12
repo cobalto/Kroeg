@@ -106,6 +106,18 @@ namespace Kroeg.Server.Controllers
             return RedirectToAction(nameof(Login));
         }
 
+        [HttpPost("proxy")]
+        public async Task<IActionResult> Proxy(string id)
+        {
+            if (User.FindFirstValue(JwtTokenSettings.ActorClaim) == null) return Unauthorized();
+
+            var entity = await _entityStore.GetEntity(id, true);
+            if (entity == null) return NotFound();
+
+            var unflattened = await _entityFlattener.Unflatten(_entityStore, entity);
+            return Content(unflattened.Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+        }
+
         [HttpPost("login"), ValidateAntiForgeryToken]
         public async Task<IActionResult> DoLogin(LoginViewModel model)
         {
