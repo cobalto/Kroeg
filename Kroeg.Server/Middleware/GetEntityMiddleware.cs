@@ -478,6 +478,9 @@ namespace Kroeg.Server.Middleware
                         throw new UnauthorizedAccessException("You are blocked.");
                 }
 
+                if (await _collectionTools.Contains(inbox.Id, id))
+                    return flattened.Data;
+
                 _serverToServerMutex.WaitOne();
 
                 try
