@@ -57,7 +57,7 @@ namespace Kroeg.Server.Services.EntityStore
             if (loadUrl.StartsWith("tag:")) return null;
 
             var htc = new HttpClient();
-            htc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/atom+xml, text/html");
+            htc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/activity+json, application/json, application/atom+xml, text/html");
 
             if (_context != null)
             {
