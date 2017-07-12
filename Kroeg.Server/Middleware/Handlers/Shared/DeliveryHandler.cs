@@ -22,7 +22,7 @@ namespace Kroeg.Server.Middleware.Handlers.Shared
             var addedTo = await _collection.AddToCollection(TargetBox, MainObject);
             if (MainObject.Type == "Block") return true;
 
-            await _deliveryService.QueueDeliveryForEntity(MainObject, addedTo.CollectionItemId, TargetBox.Type == "_inbox");
+            await _deliveryService.QueueDeliveryForEntity(MainObject, addedTo.CollectionItemId, Actor.Id);
             return true;
         }
     }

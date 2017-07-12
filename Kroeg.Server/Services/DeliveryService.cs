@@ -47,11 +47,11 @@ namespace Kroeg.Server.Services
             return targetIds.Contains("https://www.w3.org/ns/activitystreams#Public");
         }
 
-        public async Task QueueDeliveryForEntity(APEntity entity, int collectionId, bool forwardOnly = false)
+        public async Task QueueDeliveryForEntity(APEntity entity, int collectionId, string ownedBy = null)
         {
-            var audienceInbox = await _buildAudienceInbox(entity.Data, forward: forwardOnly, actor: false);
+            var audienceInbox = await _buildAudienceInbox(entity.Data, forward: ownedBy, actor: false);
             // Is public post?
-            if (audienceInbox.Item2 && !forwardOnly)
+            if (audienceInbox.Item2 && ownedBy == null)
             {
                 await _queueWebsubDelivery((string)entity.Data["actor"].First().Primitive, collectionId, entity.Id);
             }
@@ -283,7 +283,7 @@ namespace Kroeg.Server.Services
             return new HashSet<string>(targetIds);
         }
 
-        private async Task<Tuple<HashSet<string>, bool, HashSet<string>>> _buildAudienceInbox(ASObject @object, int depth = 3, bool forward = false, bool actor = true)
+        private async Task<Tuple<HashSet<string>, bool, HashSet<string>>> _buildAudienceInbox(ASObject @object, int depth = 3, string forward = null, bool actor = true)
         {
             var targetIds = new List<string>();
 
@@ -305,8 +305,10 @@ namespace Kroeg.Server.Services
             {
                 var entity = await _store.GetEntity(item, true);
                 var data = entity.Data;
-                // if it's local collectionTools, or we don't need the forwarding thing
-                if (!forward || ((data["type"].Contains(new ASTerm("CollectionTools")) || data["type"].Contains(new ASTerm("OrderedCollection"))) && entity.IsOwner))
+                // if it's local collection, or we don't need the forwarding thing
+                var iscollection = data["type"].Any(a => (string)a.Primitive == "Collection" || (string)a.Primitive == "OrderedCollection");
+                var shouldForward = entity.IsOwner && (forward == null || data["attributedTo"].Any(a => (string)a.Primitive == forward));
+                if (!iscollection || shouldForward)
                     stack.Push(new Tuple<int, APEntity>(0, entity));
             }
 
@@ -315,7 +317,10 @@ namespace Kroeg.Server.Services
                 var entity = stack.Pop();
 
                 var data = entity.Item2.Data;
-                if ((data["type"].Contains(new ASTerm("CollectionTools")) || data["type"].Contains(new ASTerm("OrderedCollection"))) && entity.Item2.IsOwner && entity.Item1 < depth)
+                var iscollection = data["type"].Any(a => (string)a.Primitive == "Collection" || (string)a.Primitive == "OrderedCollection");
+                var shouldForward = entity.Item2.IsOwner && (forward == null || data["attributedTo"].Any(a => (string)a.Primitive == forward));
+
+                if ((iscollection && shouldForward) && entity.Item1 < depth)
                 {
                     foreach (var item in await _collectionTools.GetAll(entity.Item2.Id))
                         stack.Push(new Tuple<int, APEntity>(entity.Item1 + 1, item));
