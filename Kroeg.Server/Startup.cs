@@ -127,6 +127,7 @@ namespace Kroeg.Server
             loggerFactory.AddDebug();
 
             app.UseIdentity();
+            app.UseWebSockets();
 
             var tokenSettings = app.ApplicationServices.GetRequiredService<JwtTokenSettings>();
 

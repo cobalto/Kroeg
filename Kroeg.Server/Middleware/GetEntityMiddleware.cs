@@ -27,6 +27,8 @@ using System.Security.Claims;
 using System.Collections.Concurrent;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using System.Net.WebSockets;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -79,6 +81,13 @@ namespace Kroeg.Server.Middleware
             if (context.Request.Headers["Accept"].Contains("text/event-stream"))
             {
                 await handler.EventStream(context, fullpath);
+                return;
+            }
+
+
+            if (context.WebSockets.IsWebSocketRequest)
+            {
+                await handler.WebSocket(context, fullpath);
                 return;
             }
 
@@ -272,7 +281,7 @@ namespace Kroeg.Server.Middleware
             public async Task EventStream(HttpContext context, string fullpath)
             {
                 var entity = await _mainStore.GetEntity(fullpath, false);
-                var authToken = context.Request.Query["authorization"];
+                var authToken = context.Request.Query["authorization"].Concat(context.Request.Headers["Authorization"].Select(a => a.Split(' ')[1])).ToList();
                 if (authToken.Count == 0)
                 {
                     context.Response.StatusCode = 403;
@@ -365,6 +374,104 @@ namespace Kroeg.Server.Middleware
 
                 await _notifier.Unsubscribe($"collection/{fullpath}", subscriptionCall);
                 context.Response.Body.Dispose();
+            }
+
+            public async Task WebSocket(HttpContext context, string fullpath)
+            {
+
+                var entity = await _mainStore.GetEntity(fullpath, false);
+                var authToken = context.Request.Query["authorization"].Concat(context.Request.Headers["Authorization"].Select(a => a.Split(' ')[1])).ToList();
+                if (authToken.Count == 0)
+                {
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsync("No authorization token provided");
+                    return;
+                }
+
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var claims = tokenHandler.ValidateToken(authToken[0], _tokenSettings.ValidationParameters, out SecurityToken validatedToken);
+                var entityClaim = claims.FindFirstValue(JwtTokenSettings.ActorClaim);
+                if (entityClaim == null) return;
+                if (entity.Data["attributedTo"].TrueForAll(a => (string)a.Primitive != entityClaim))
+                {
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsync("Not authorized to view this item live");
+                    return;
+                }
+
+                if ((!entity.Type.StartsWith("_") && entity.Type != "OrderedCollection") || !entity.IsOwner)
+                {
+                    context.Response.StatusCode = 415;
+                    await context.Response.WriteAsync("Cannot view this item live!");
+                    return;
+                }
+
+                if (context.WebSockets.WebSocketRequestedProtocols.Count > 0 && !context.WebSockets.WebSocketRequestedProtocols.Contains("activitypub"))
+                {
+                    context.Response.StatusCode = 415;
+                    await context.Response.WriteAsync("Invalid protocol?");
+                    return;
+                }
+
+                var tokenSource = new CancellationTokenSource();
+                ConcurrentQueue<string> toSend = new ConcurrentQueue<string>();
+
+                Action<string> subscriptionCall = (item) =>
+                {
+                    toSend.Enqueue(item);
+                    tokenSource.Cancel();
+                };
+
+                await _notifier.Subscribe($"collection/{fullpath}", subscriptionCall);
+                context.RequestAborted.Register(() => tokenSource.Cancel());
+
+                WebSocket socket;
+                if (context.WebSockets.WebSocketRequestedProtocols.Count > 0)
+                    socket = await context.WebSockets.AcceptWebSocketAsync("activitypub");
+                else
+                    socket = await context.WebSockets.AcceptWebSocketAsync();
+                var buf = new byte[1024];
+                var seg = new ArraySegment<byte>(buf);
+
+                while (true)
+                {
+                    try
+                    {
+                        await Task.Delay(30000, tokenSource.Token);
+                        var b = new ArraySegment<byte>(new byte[] { });
+                        await socket.SendAsync(b, WebSocketMessageType.Text, false, CancellationToken.None);
+                    } catch (TaskCanceledException) { }
+
+                    if (socket.State != WebSocketState.Open) break;
+
+                    do
+                    {
+                        var success = toSend.TryDequeue(out var item);
+                        if (success)
+                        {
+                            var stored = await _mainStore.GetEntity(item, false);
+                            if (stored == null)
+                            for (int i = 0; i < 10 && stored == null; i++)
+                            {
+                                // oh god race conditions
+                                await Task.Delay(1000);
+                                stored = await _mainStore.GetEntity(item, false);
+
+                            }
+
+                            var unflattened = await _flattener.Unflatten(_mainStore, stored);
+                            var serialized = Encoding.UTF8.GetBytes(unflattened.Serialize().ToString(Formatting.None));
+                            var segment = new ArraySegment<byte>(serialized);
+                            await socket.SendAsync(segment, WebSocketMessageType.Text, true, CancellationToken.None);
+                        }
+                    } while (toSend.Count > 0);
+
+                    tokenSource.Dispose();
+                    tokenSource = new CancellationTokenSource();
+                }
+
+                await socket.CloseAsync(WebSocketCloseStatus.Empty, "other side closed", CancellationToken.None);
+                await _notifier.Unsubscribe($"collection/{fullpath}", subscriptionCall);
             }
 
             private async Task<ASObject> _getCollection(APEntity entity, IQueryCollection arguments)
@@ -500,7 +607,6 @@ namespace Kroeg.Server.Middleware
 
                         transaction.Commit();
 
-                        await _notifier.Notify("collection/" + inbox.Id, flattened.Id);
                         return flattened.Data;
                     }
                 }
@@ -578,8 +684,6 @@ namespace Kroeg.Server.Middleware
                     await _context.SaveChangesAsync();
 
                     transaction.Commit();
-
-                    await _notifier.Notify("collection/" + outbox.Id, flattened.Id);
 
                     return flattened.Data;
                 }

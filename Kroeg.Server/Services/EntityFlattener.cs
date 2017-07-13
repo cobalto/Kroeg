@@ -43,8 +43,12 @@ namespace Kroeg.Server.Tools
         {
             if (mapped == null)
                 mapped = new Dictionary<string, APEntity>();
-            var e = await store.GetEntity(entity.Id, false);
-            if (e?.IsOwner == true) entity.IsOwner = true;
+
+            if (entity.Id != null)
+            {
+                var e = await store.GetEntity(entity.Id, false);
+                if (e?.IsOwner == true) entity.IsOwner = true;
+            }
 
             var unflattened = await _unflatten(store, entity, depth, mapped, _configuration.UnflattenRemotely);
 
