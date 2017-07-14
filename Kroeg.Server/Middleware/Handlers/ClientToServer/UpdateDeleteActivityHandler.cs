@@ -13,8 +13,8 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
     public class UpdateDeleteActivityHandler : BaseHandler
     {
         private readonly ActivityService _activityService;
-        private static readonly HashSet<string> UpdateBlacklist = new HashSet<string> { "attributedTo", "created", "id", "deleted", "type" };
-        private static readonly HashSet<string> DeleteWhitelist = new HashSet<string> { "id", "type", "created", "updated" };
+        private static readonly HashSet<string> UpdateBlacklist = new HashSet<string> { "attributedTo", "published", "id", "deleted", "type", "object", "actor" };
+        private static readonly HashSet<string> DeleteWhitelist = new HashSet<string> { "id", "type", "published", "updated" };
 
         public UpdateDeleteActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, ActivityService activityService) : base(entityStore, mainObject, actor, targetBox, user)
         {
