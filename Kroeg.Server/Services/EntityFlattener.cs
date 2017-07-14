@@ -18,10 +18,10 @@ namespace Kroeg.Server.Tools
             _configuration = configuration;
         }
 
-        public async Task<APEntity> FlattenAndStore(IEntityStore store, ASObject @object, Dictionary<string, APEntity> dict = null)
+        public async Task<APEntity> FlattenAndStore(IEntityStore store, ASObject @object, bool generateId = true, Dictionary<string, APEntity> dict = null)
         {
             dict = dict ?? new Dictionary<string, APEntity>();
-            var main = await Flatten(store, @object, dict);
+            var main = await Flatten(store, @object, generateId, dict);
 
             foreach (var entity in dict.ToArray())
                 dict[entity.Key] = await store.StoreEntity(entity.Value);
@@ -29,12 +29,12 @@ namespace Kroeg.Server.Tools
             return dict[main.Id];
         }
 
-        public async Task<APEntity> Flatten(IEntityStore store, ASObject @object, Dictionary<string, APEntity> flattened = null)
+        public async Task<APEntity> Flatten(IEntityStore store, ASObject @object, bool generateId = true, Dictionary<string, APEntity> flattened = null)
         {
             if (flattened == null)
                 flattened = new Dictionary<string, APEntity>();
 
-            var mainEntity = await _flatten(store, @object, flattened);
+            var mainEntity = await _flatten(store, @object, generateId, flattened);
 
             return flattened[mainEntity.Id];
         }
@@ -87,13 +87,15 @@ namespace Kroeg.Server.Tools
             return data;
         }
 
-        private async Task<APEntity> _flatten(IEntityStore store, ASObject @object, IDictionary<string, APEntity> entities, string parentId = null)
+        private async Task<APEntity> _flatten(IEntityStore store, ASObject @object, bool generateId, IDictionary<string, APEntity> entities, string parentId = null)
         {
 
             var entity = new APEntity();
 
             if (@object["id"].Count == 0)
             {
+                if (!generateId) throw new InvalidOperationException("Remote object without ID found! Refusing to work!");
+
                 @object["id"].Add(new ASTerm(await _configuration.FindUnusedID(store, @object, null, parentId)));
                 entity.IsOwner = true;
             }
@@ -111,7 +113,7 @@ namespace Kroeg.Server.Tools
                     if (value.SubObject == null) continue;
                     if (value.SubObject["id"].Any(a => a.Primitive == null)) continue; // transient object
 
-                    var subObject = await _flatten(store, value.SubObject, entities, entity.Id);
+                    var subObject = await _flatten(store, value.SubObject, generateId, entities, entity.Id);
 
                     value.Primitive = subObject.Id;
                     value.SubObject = null;

@@ -570,7 +570,7 @@ namespace Kroeg.Server.Middleware
                 var id = (string) activity["id"].Single().Primitive;
                 flattened = await _mainStore.GetEntity(id, false);
                 if (flattened == null)
-                    flattened = await _flattener.FlattenAndStore(stagingStore, activity);
+                    flattened = await _flattener.FlattenAndStore(stagingStore, activity, false);
 
                 stagingStore.TrimDown(prefix); // remove all staging entities that may be faked
 

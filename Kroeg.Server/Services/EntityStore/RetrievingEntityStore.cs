@@ -123,7 +123,7 @@ namespace Kroeg.Server.Services.EntityStore
             }
 
             // forces out the old lazy load, if used
-            await _entityFlattener.FlattenAndStore(Next, data);
+            await _entityFlattener.FlattenAndStore(Next, data, false);
             await Next.CommitChanges();
 
             return await Next.GetEntity(id, true);
