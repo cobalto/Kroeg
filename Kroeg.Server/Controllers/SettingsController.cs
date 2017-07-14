@@ -269,6 +269,7 @@ namespace Kroeg.Server.Controllers
             var create = new ASObject();
             create["type"].Add(new ASTerm("Create"));
             create["object"].Add(new ASTerm(obj));
+            create["to"].Add(new ASTerm("https://www.w3.org/ns/activitystreams#Public"));
 
             var stagingStore = new StagingEntityStore(_entityStore);
             var apo = await _flattener.FlattenAndStore(stagingStore, create);
