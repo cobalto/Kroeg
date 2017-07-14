@@ -14,10 +14,12 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
     public class CreateActivityHandler : BaseHandler
     {
         private readonly CollectionTools _collection;
+        private readonly EntityData _entityData;
 
-        public CreateActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, CollectionTools collection) : base(entityStore, mainObject, actor, targetBox, user)
+        public CreateActivityHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, CollectionTools collection, EntityData entityData) : base(entityStore, mainObject, actor, targetBox, user)
         {
             _collection = collection;
+            _entityData = entityData;
         }
 
         private async Task AddCollection(ASObject entity, string obj, string type, string parent)
@@ -43,6 +45,8 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
             var activityData = MainObject.Data;
             var objectEntity = await EntityStore.GetEntity((string) activityData["object"].First().Primitive, false);
             var objectData = objectEntity.Data;
+
+            if (_entityData.IsActivity(objectData)) throw new InvalidOperationException("Cannot Create another activity!");
 
             objectData["attributedTo"].AddRange(activityData["actor"]);
 
