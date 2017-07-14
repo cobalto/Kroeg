@@ -1,0 +1,26 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+@{
+    ViewBag.Title = "Admin";
+    Layout = "_LayoutBootstrap";
+}
+
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-4">
+            <input type="text" class="form-control" id="search" placeholder="Find entity..." />
+            <ul class="list-group" id="autocomplete">
+                @*<a class="list-group-item list-group-item-action" href="@Url.Action("NewActor")">New</a>*@
+            </ul>
+        </div>
+        <div class="col-md-8">
+            <pre id="entity-container"></pre>
+            <input type="submit" id="update-entity" value="Update entity" />
+        </div>
+    </div>
+</div>
+
+<script src="~/js/admin.js"></script>

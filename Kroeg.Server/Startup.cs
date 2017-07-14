@@ -48,6 +48,11 @@ namespace Kroeg.Server
                 .AddEntityFrameworkStores<APContext>()
                 .AddDefaultTokenProviders();
 
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("admin", policy => policy.RequireClaim("admin"));
+            });
+
             services.Configure<IdentityOptions>(options =>
             {
                 options.Password.RequireDigit = false;

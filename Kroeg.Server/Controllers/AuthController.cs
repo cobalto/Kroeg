@@ -161,6 +161,12 @@ namespace Kroeg.Server.Controllers
 
             if (!ModelState.IsValid) return View("Register", model);
 
+            if (await _context.Users.CountAsync() == 1)
+            {
+                await _userManager.AddClaimAsync(apuser, new Claim("admin", "true"));
+                await _context.SaveChangesAsync();
+            }
+
             await _signInManager.SignInAsync(apuser, false);
             return RedirectToActionPermanent("Index", "Settings");
         }
