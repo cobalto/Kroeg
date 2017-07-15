@@ -94,8 +94,7 @@ namespace Kroeg.Server.Tools
 
             if (@object["id"].Count == 0)
             {
-                if (!generateId) throw new InvalidOperationException("Remote object without ID found! Refusing to work!");
-
+                if (!generateId) return null;
                 @object["id"].Add(new ASTerm(await _configuration.FindUnusedID(store, @object, null, parentId)));
                 entity.IsOwner = true;
             }
@@ -114,6 +113,7 @@ namespace Kroeg.Server.Tools
                     if (value.SubObject["id"].Any(a => a.Primitive == null)) continue; // transient object
 
                     var subObject = await _flatten(store, value.SubObject, generateId, entities, entity.Id);
+                    if (subObject == null) continue;
 
                     value.Primitive = subObject.Id;
                     value.SubObject = null;

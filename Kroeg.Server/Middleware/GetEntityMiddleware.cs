@@ -78,6 +78,9 @@ namespace Kroeg.Server.Middleware
                 return;
             }
 
+            Console.WriteLine(fullpath);
+            foreach (var line in context.Request.Headers["Accept"]) Console.WriteLine($"---- {line}");
+
             if (context.Request.Headers["Accept"].Contains("text/event-stream"))
             {
                 await handler.EventStream(context, fullpath);
