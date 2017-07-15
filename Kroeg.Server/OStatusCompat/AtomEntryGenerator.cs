@@ -413,7 +413,7 @@ namespace Kroeg.Server.OStatusCompat
             if (!isNativeAtom)
                 elem.Add(
                     new XElement(Atom + "link",
-                        new XAttribute(NoNamespace + "rel", "self"),
+                        new XAttribute(NoNamespace + "rel", "alternate"),
                         new XAttribute(NoNamespace + "type", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\""),
                         new XAttribute(NoNamespace + "href", ao["id"].First().Primitive)),
                     new XElement(Atom + "link",
