@@ -327,10 +327,10 @@ namespace Kroeg.Server.OStatusCompat
             else
             {
                 elem.Add(
-//                    new XElement(Atom + "link",
-//                        new XAttribute(NoNamespace + "rel", "self"),
-//                        new XAttribute(NoNamespace + "type", "application/json+ld; profile=\"https://www.w3.org/ns/activitystreams\""),
-//                        new XAttribute(NoNamespace + "href", self)),
+                    new XElement(Atom + "link",
+                        new XAttribute(NoNamespace + "rel", "alternate"),
+                        new XAttribute(NoNamespace + "type", "application/json+ld; profile=\"https://www.w3.org/ns/activitystreams\""),
+                        new XAttribute(NoNamespace + "href", self)),
                     new XElement(Atom + "link",
                         new XAttribute(NoNamespace + "rel", "alternate"),
                         new XAttribute(NoNamespace + "type", "text/html"),
