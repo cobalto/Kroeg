@@ -532,9 +532,14 @@ namespace Kroeg.Server.Middleware
                 switch (original.Type)
                 {
                     case "_inbox":
-                        var jwt = context.Request.Headers["Authorization"].First().Split(' ')[1];
-                        var subjectId = await _deliveryService.VerifyJWS(fullpath, jwt);
-                        if (subjectId == null) throw new UnauthorizedAccessException("federation requires JWS");
+                        var actorObj = @object["actor"].First();
+                        string subjectId = (string)actorObj.Primitive ?? (string) actorObj.SubObject["id"].First().Primitive;
+                        if (context.Request.Headers["Authorization"].Any())
+                        {
+                            var jwt = context.Request.Headers["Authorization"].First().Split(' ')[1];
+                            subjectId = await _deliveryService.VerifyJWS(fullpath, jwt);
+                            if (subjectId == null) throw new UnauthorizedAccessException("federation requires JWS");
+                        }
                         return await ServerToServer(original, @object, subjectId);
                     case "_outbox":
                         var userId = original.Data["attributedTo"].FirstOrDefault() ?? original.Data["actor"].FirstOrDefault();
