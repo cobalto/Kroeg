@@ -84,6 +84,7 @@ namespace Kroeg.Server.Tools
             endpoints.Replace("id", new ASTerm((string)null));
 
             data.Replace("endpoints", new ASTerm(endpoints));
+            data.Replace("publicKey", new ASTerm(basePath + "auth/key?id=" + Uri.EscapeDataString(entity.Id)));
             return data;
         }
 

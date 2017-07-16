@@ -182,6 +182,23 @@ namespace Kroeg.Server.Controllers
             return builder.ToString();
         }
 
+        [HttpGet("key")]
+        public async Task<IActionResult> GetKey(string id)
+        {
+            var user = await _entityStore.GetEntity(id, false);
+            if (user == null || !user.IsOwner) return NotFound();
+
+            var key = await _context.GetKey(user.Id);
+            var salm = new MagicKey(key.PrivateKey);
+            var data = salm.AsPEM;
+
+            var keyObj = new ASObject();
+            keyObj.Replace("owner", new ASTerm(user.Id));
+            keyObj.Replace("publicKeyPem", new ASTerm(data));
+            keyObj.Replace("id", new ASTerm($"{Request.Scheme}://{Request.Host}{Request.Path}{Request.QueryString}"));
+            return Content(keyObj.Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+        }
+
         [HttpGet("oauth")]
         public async Task<IActionResult> DoOAuthToken(string id, string response_type, string redirect_uri, string state)
         {

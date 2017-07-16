@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Kroeg.ActivityStreams;
+using Kroeg.Server.Tools;
 
 namespace Kroeg.Server.Salmon
 {
@@ -95,7 +96,7 @@ namespace Kroeg.Server.Salmon
 
         public static async Task<MagicKey> KeyForAuthor(ASObject obj)
         {
-            var authorId = (string) obj["email"].FirstOrDefault()?.Primitive;
+            var authorId = (string)obj["email"].FirstOrDefault()?.Primitive;
             if (authorId == null)
             {
                 authorId = obj["name"].FirstOrDefault()?.Primitive + "@" + new Uri((string)obj["id"].First().Primitive).Host;
@@ -126,6 +127,23 @@ namespace Kroeg.Server.Salmon
         public byte[] Sign(byte[] data)
         {
             return _rsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        }
+
+        public string AsPEM
+        {
+            get
+            {
+                var data = ASN1.FromRSA(_rsa);
+                var baseData = Convert.ToBase64String(data);
+                var builder = new StringBuilder(baseData);
+                for (int i = 72; i < builder.Length; i += 73)
+                    builder.Insert(i, "\n");
+
+                builder.Insert(0, "-----BEGIN PUBLIC KEY-----\n");
+                builder.Append("\n-----END PUBLIC KEY-----");
+
+                return builder.ToString();
+            }
         }
 
         public string PrivateKey

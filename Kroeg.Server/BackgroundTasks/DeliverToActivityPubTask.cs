@@ -13,6 +13,7 @@ using Kroeg.Server.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
 using System.Linq;
+using Kroeg.Server.Salmon;
 
 namespace Kroeg.Server.BackgroundTasks
 {
@@ -28,13 +29,48 @@ namespace Kroeg.Server.BackgroundTasks
         private readonly EntityFlattener _entityFlattener;
         private readonly IServiceProvider _serviceProvider;
         private readonly DeliveryService _deliveryService;
+        private readonly APContext _context;
+        private readonly EntityData _data;
 
-        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider, DeliveryService deliveryService) : base(item)
+        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider, DeliveryService deliveryService, APContext context, EntityData data) : base(item)
         {
             _entityStore = entityStore;
             _entityFlattener = entityFlattener;
             _serviceProvider = serviceProvider;
             _deliveryService = deliveryService;
+            _context = context;
+            _data = data;
+        }
+
+        private async Task<string> _buildSignature(string ownerId, HttpRequestMessage message)
+        {
+            string[] headers = new string[] { "(request-target)", "date", "authorization", "content-type" };
+            var toSign = new StringBuilder();
+            foreach (var header in headers)
+            {
+                if (header == "(request-target)")
+                    toSign.Append($"{header}: {message.Method.Method.ToLower()} {message.RequestUri.PathAndQuery}\n");
+                else
+                {
+                    if (message.Headers.TryGetValues(header, out var vals))
+                        toSign.Append($"{header}: {string.Join(", ", vals)}\n");
+                    else if (message.Content.Headers.TryGetValues(header, out var cvals))
+                        toSign.Append($"{header}: {string.Join(", ", cvals)}\n");
+                    else
+                        toSign.Append($"{header}: \n");
+                }
+            }
+
+            toSign.Remove(toSign.Length - 1, 1);
+
+            var key = await _context.GetKey(ownerId);
+            var magic = new MagicKey(key.PrivateKey);
+            var signed = Convert.ToBase64String(magic.Sign(Encoding.UTF8.GetBytes(toSign.ToString())));
+
+            var ownerOrigin = new Uri(ownerId);
+            var keyId = $"{ownerOrigin.Scheme}://{ownerOrigin.Host}{_data.BasePath}auth/key?id={Uri.EscapeDataString(ownerId)}";
+
+            return $"keyId=\"{keyId}\",algorithm=\"rsa-sha256\",headers=\"{string.Join(" ", headers)}\",signature=\"{signed}\"";
         }
 
         public async Task PostToServer()
@@ -50,10 +86,16 @@ namespace Kroeg.Server.BackgroundTasks
             var content = new StringContent(serialized, Encoding.UTF8);
             content.Headers.ContentType = new MediaTypeHeaderValue("application/ld+json");
             content.Headers.ContentType.Parameters.Add(new NameValueHeaderValue("profile", "\"https://www.w3.org/ns/activitystreams\""));
-            hc.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
-            hc.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var result = await hc.PostAsync(Data.TargetInbox, content);
+            var message = new HttpRequestMessage(HttpMethod.Post, Data.TargetInbox);
+            message.Content = content;
+
+            message.Headers.Date = DateTimeOffset.Now;
+            message.Headers.TryAddWithoutValidation("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
+            message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            message.Headers.Add("Signature", await _buildSignature(owner.Id, message));
+
+            var result = await hc.SendAsync(message);
 
             var resultContent = await result.Content.ReadAsStringAsync();
             if (!result.IsSuccessStatusCode && (int)result.StatusCode / 100 == 5)
@@ -63,7 +105,7 @@ namespace Kroeg.Server.BackgroundTasks
         public override async Task Go()
         {
             var inbox = await _entityStore.GetEntity(Data.TargetInbox, false);
-            if (inbox != null && inbox.IsOwner && inbox.Type == "_inbox")
+            if (inbox != null && inbox.IsOwner && inbox.Type == "_inbox" && false)
             {
                 var item = await _entityStore.GetEntity(Data.ObjectId, false);
 
