@@ -34,7 +34,7 @@ namespace Kroeg.Server.Tools
         {
             var prms = rsa.ExportParameters(false);
 
-            var modulus = new Asn1Integer(prms.Modulus);
+            var modulus = new Asn1Integer((new byte[] { 0x00 }.Concat(prms.Modulus)).ToArray());
             var exponent = new Asn1Integer(prms.Exponent);
 
             var oidheader = new Asn1Sequence();
