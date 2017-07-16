@@ -40,7 +40,14 @@ namespace Kroeg.Server.Services.EntityStore
         public void TrimDown(string prefix)
         {
             foreach (var item in _entities.Keys.ToList())
-                if (!item.StartsWith(prefix)) _entities.Remove(item);
+            {
+                if (item.StartsWith(prefix)) continue;
+                var data = _entities[item].Data;
+                if (data["_:origin"].Any((a) => (string) a.Primitive == "atom") && data["_:atomRetrieveUrl"].Any((a) => ((string) a.Primitive).StartsWith(prefix))) continue;
+
+                _entities.Remove(item);
+            }
+                
         }
 
         public IEntityStore Bypass { get; }
