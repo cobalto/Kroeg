@@ -325,7 +325,7 @@ namespace Kroeg.Server.Services
                     foreach (var item in await _collectionTools.GetAll(entity.Item2.Id))
                         stack.Push(new Tuple<int, APEntity>(entity.Item1 + 1, item));
                 }
-                else if (_configuration.IsActor(data))
+                else if (forward == null && _configuration.IsActor(data))
                 {
                     if (data["inbox"].Any())
                         targets.Add((string)data["inbox"].First().Primitive);
