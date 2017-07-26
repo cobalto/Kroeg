@@ -56,6 +56,12 @@ namespace Kroeg.Server.Middleware.Renderers
                 if (toRender["type"].Any(a => (string)a.Primitive == "Tombstone"))
                     response.StatusCode = 410;
 
+                if (request.Method == "POST")
+                {
+                    response.StatusCode = 201;
+                    response.Headers.Add("Location", (string)toRender["id"].First().Primitive);
+                }
+
                 response.Headers.Add("Access-Control-Allow-Origin", "*");
 
                 var depth = Math.Min(int.Parse(request.Query["depth"].FirstOrDefault() ?? "3"), 5);
