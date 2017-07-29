@@ -2,6 +2,7 @@
 using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
 using Microsoft.AspNetCore.Mvc;
+using Kroeg.Server.Services.Template;
 
 namespace Kroeg.Server.Controllers
 {
@@ -9,10 +10,12 @@ namespace Kroeg.Server.Controllers
     public class RenderController : Controller
     {
         private readonly IEntityStore _entityStore;
+        private readonly TemplateService _templateService;
 
-        public RenderController(IEntityStore entityStore)
+        public RenderController(IEntityStore entityStore, TemplateService templateService)
         {
             _entityStore = entityStore;
+            _templateService = templateService;
         }
 
         [HttpGet("remote")]
@@ -23,18 +26,18 @@ namespace Kroeg.Server.Controllers
 
             var entity = await _entityStore.GetEntity(url, true);
 
-            return View("Generic", entity);
+            return Content(await _templateService.ParseTemplate("object", _entityStore, entity), "text/html");
         }
 
         [HttpGet("")]
-        public IActionResult Render()
+        public async Task<IActionResult> Render()
         {
             if (!HttpContext.Items.ContainsKey("object"))
                 return RedirectPermanent("/");
 
             var obj = (APEntity) HttpContext.Items["object"];
 
-            return View("Generic", obj);
+            return Content(await _templateService.ParseTemplate("object", _entityStore, obj), "text/html");
         }
     }
 }

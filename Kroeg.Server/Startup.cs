@@ -19,6 +19,7 @@ using Kroeg.Server.Tools;
 using Kroeg.Server.Services.Notifiers.Redis;
 using Kroeg.Server.Services.Notifiers;
 using Microsoft.AspNetCore.Http;
+using Kroeg.Server.Services.Template;
 
 namespace Kroeg.Server
 {
@@ -123,6 +124,7 @@ namespace Kroeg.Server
                 var httpAccessor = provider.GetService<IHttpContextAccessor>();
                 return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor);
             });
+            services.AddSingleton<TemplateService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
