@@ -85,6 +85,7 @@ namespace Kroeg.Server.Tools
 
             data.Replace("endpoints", new ASTerm(endpoints));
             data.Replace("publicKey", new ASTerm(basePath + "auth/key?id=" + Uri.EscapeDataString(entity.Id)));
+            data.Replace("sharedInbox", new ASTerm(_configuration.BaseUri + "/auth/sharedInbox"));
             return data;
         }
 

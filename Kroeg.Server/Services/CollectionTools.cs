@@ -74,6 +74,13 @@ namespace Kroeg.Server.Services
             return await list.Select(a => a.Element).ToListAsync();
         }
 
+        public async Task<List<APEntity>> CollectionsContaining(string containId, string type = null)
+        {
+            var collectionItems = _context.CollectionItems.Where(a => a.ElementId == containId).Select(a => a.Collection);
+            if (type != null) collectionItems = collectionItems.Where(a => a.Type == type);
+            return await collectionItems.ToListAsync();
+        }
+
         public async Task<CollectionItem> AddToCollection(APEntity collection, APEntity entity)
         {
             var ci = new CollectionItem

@@ -28,10 +28,26 @@ namespace Kroeg.Server.Services
             public string Actor { get; set; }
         }
 
-        public async Task<List<APEntity>> FindRelevantObject(string authorId, string objectType, string objectId)
+        private class FollowerJson
+        {
+            [JsonProperty("followers")]
+            public string Followers { get; set; }
+        }
+
+        private async Task<List<APEntity>> _search(object obj)
         {
             return await _context.Entities.FromSql("SELECT * FROM \"Entities\" WHERE \"SerializedData\" @> {0}::jsonb", JsonConvert.SerializeObject(
-                new RelevantObjectJson { Type = objectType, Object = objectId, Actor = authorId }, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore })).ToListAsync();
+                obj, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore })).ToListAsync();
+        }
+
+        public async Task<List<APEntity>> FindRelevantObject(string authorId, string objectType, string objectId)
+        {
+            return await _search(new RelevantObjectJson { Type = objectType, Object = objectId, Actor = authorId });
+        }
+
+        public async Task<List<APEntity>> FindEntitiesWithFollowerId(string followerId)
+        {
+            return await _search(new FollowerJson { Followers = followerId });
         }
     }
 }

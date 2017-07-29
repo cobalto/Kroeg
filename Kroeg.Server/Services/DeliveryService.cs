@@ -25,13 +25,15 @@ namespace Kroeg.Server.Services
         private readonly CollectionTools _collectionTools;
         private readonly IEntityStore _store;
         private readonly JwtTokenSettings _tokenSettings;
+        private readonly RelevantEntitiesService _relevantEntities;
 
-        public DeliveryService(APContext context, CollectionTools collectionTools, EntityData configuration, IEntityStore store)
+        public DeliveryService(APContext context, CollectionTools collectionTools, EntityData configuration, IEntityStore store, RelevantEntitiesService relevantEntities)
         {
             _context = context;
             _collectionTools = collectionTools;
             _configuration = configuration;
             _store = store;
+            _relevantEntities = relevantEntities;
         }
 
         public static bool IsPublic(ASObject @object)
@@ -65,207 +67,40 @@ namespace Kroeg.Server.Services
             await _context.SaveChangesAsync();
         }
 
-        private async Task<JsonWebKeySet> _getKey(string url)
+        public async Task<List<APEntity>> GetUsersForSharedInbox(ASObject objectToProcess)
         {
-            var hc = new HttpClient();
-            return JsonConvert.DeserializeObject<JsonWebKeySet>(await hc.GetStringAsync(url));
-        }
-
-        public async Task<JWKEntry> GetKey(APEntity actor, string kid = null)
-        {
-            if (!actor.IsOwner)
+            var audience = GetAudienceIds(objectToProcess);
+            var result = new HashSet<string>();
+            foreach (var entity in audience)
             {
-                if (kid == null) return null; // can't do that for remote actors
-
-                var key = await _context.JsonWebKeys.FirstOrDefaultAsync(a => a.Owner == actor && a.Id == kid);
-                if (key == null)
+                List<APEntity> followers = null;
+                var data = await _store.GetEntity(entity, false);
+                if (data != null && data.IsOwner && data.Type == "_followers")
                 {
-                    // well here we go
-
-                    var endpoints = actor.Data["endpoints"].FirstOrDefault();
-                    if (endpoints == null) return null;
-                    ASObject endpointsData;
-                    if (endpoints.Primitive != null)
-                        endpointsData = (await _store.GetEntity((string)endpoints.Primitive, true)).Data;
-                    else
-                        endpointsData = endpoints.SubObject;
-
-                    var jwks = (string) endpointsData["jwks"].FirstOrDefault()?.Primitive; // not actually an entity!
-                    if (jwks == null) return null;
-
-                    var keys = await _getKey(jwks);
-                    var jwkey = keys.Keys.FirstOrDefault(a => a.Kid == kid);
-
-                    if (jwkey == null) return null; // couldn't find key
-
-                    key = new JWKEntry
-                    {
-                        Owner = actor,
-                        Id = kid,
-                        SerializedData = JsonConvert.SerializeObject(jwkey)
-                    };
-
-                    _context.JsonWebKeys.Add(key);
-                    await _context.SaveChangesAsync();
+                    followers = new List<APEntity> { await _store.GetEntity((string)data.Data["attributedTo"].Single().Primitive, false) };
+                }
+                else if (data == null || !data.IsOwner)
+                {
+                    followers = await _relevantEntities.FindEntitiesWithFollowerId(data.Id);
                 }
 
-                return key;
-            }
-            else
-            {
-                var key = await _context.JsonWebKeys.FirstOrDefaultAsync(a => a.Owner == actor);
-                if (key == null)
+                if (followers == null || followers.Count == 0) continue; // apparently not a follower list? giving up.
+
+                foreach (var f in followers)
                 {
-                    var jwk = new JsonWebKey();
-                    jwk.KeyOps.Add("sign");
-                    jwk.Kty = "EC";
-                    jwk.Crv = "P-256";
-                    jwk.Use = JsonWebKeyUseNames.Sig;
-                    jwk.Kid = Guid.NewGuid().ToString().Substring(0, 8);
-
-                    var ec = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-                    var parms = ec.ExportParameters(true);
-                    jwk.X = Base64UrlEncoder.Encode(parms.Q.X);
-                    jwk.Y = Base64UrlEncoder.Encode(parms.Q.Y);
-                    jwk.D = Base64UrlEncoder.Encode(parms.D);
-
-                    key = new JWKEntry { Id = jwk.Kid, Owner = actor, SerializedData = JsonConvert.SerializeObject(jwk) };
-                    _context.JsonWebKeys.Add(key);
-                    await _context.SaveChangesAsync();
-                }
-
-                return key;
-            }
-        }
-
-        private class _cryptoProviderFactory : CryptoProviderFactory
-        {
-            private class _signatureProvider : SignatureProvider
-            {
-                private JsonWebKey _key;
-                private ECDsa _ecdsa;
-
-                private static Dictionary<string, ECCurve> _curves = new Dictionary<string, ECCurve>
-                {
-                    [JsonWebKeyECTypes.P256] = ECCurve.NamedCurves.nistP256,
-                    [JsonWebKeyECTypes.P384] = ECCurve.NamedCurves.nistP384,
-                    [JsonWebKeyECTypes.P521] = ECCurve.NamedCurves.nistP521,
-                };
-
-                private static Dictionary<string, HashAlgorithmName> _hashes = new Dictionary<string, HashAlgorithmName>
-                {
-                    [SecurityAlgorithms.EcdsaSha256] = HashAlgorithmName.SHA256,
-                    [SecurityAlgorithms.EcdsaSha256Signature] = HashAlgorithmName.SHA256,
-                    [SecurityAlgorithms.EcdsaSha384] = HashAlgorithmName.SHA384,
-                    [SecurityAlgorithms.EcdsaSha384Signature] = HashAlgorithmName.SHA384,
-                    [SecurityAlgorithms.EcdsaSha512] = HashAlgorithmName.SHA512,
-                    [SecurityAlgorithms.EcdsaSha512Signature] = HashAlgorithmName.SHA512
-                };
-
-                public _signatureProvider(SecurityKey key, string algorithm) : base(key, algorithm)
-                {
-                    _key = key as JsonWebKey;
-                    if (_key.Kty == JsonWebAlgorithmsKeyTypes.EllipticCurve)
+                    var following = await _collectionTools.CollectionsContaining(f.Id, "_following");
+                    foreach (var item in following)
                     {
-                        var ecpa = new ECParameters
-                        {
-                            Curve = _curves[_key.Crv],
-                            D = _key.D != null ? Base64UrlEncoder.DecodeBytes(_key.D) : null,
-                            Q = new ECPoint
-                            {
-                                X = Base64UrlEncoder.DecodeBytes(_key.X),
-                                Y = Base64UrlEncoder.DecodeBytes(_key.Y)
-                            }
-                        };
-
-                        _ecdsa = ECDsa.Create(ecpa);
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException("Algorithm not yet supported");
+                        result.Add((string)item.Data["attributedTo"].Single().Primitive);
                     }
                 }
-
-                public override byte[] Sign(byte[] input)
-                {
-                    return _ecdsa.SignData(input, _hashes[Algorithm]);
-                }
-
-                public override bool Verify(byte[] input, byte[] signature)
-                {
-                    return _ecdsa.VerifyData(input, signature, _hashes[Algorithm]);
-                }
-
-                protected override void Dispose(bool disposing)
-                {
-                    _ecdsa.Dispose();
-                }
             }
 
-            public override SignatureProvider CreateForSigning(SecurityKey key, string algorithm)
-            {
-                return new _signatureProvider(key, algorithm);
-            }
+            var resultList = new List<APEntity>();
+            foreach (var item in result)
+                resultList.Add(await _store.GetEntity(item, false));
 
-            public override SignatureProvider CreateForVerifying(SecurityKey key, string algorithm)
-            {
-                return new _signatureProvider(key, algorithm);
-            }
-        }
-
-        public async Task<string> BuildFederatedJWS(APEntity subject, string inbox)
-        {
-            var key = await GetKey(subject);
-
-            var subUri = new Uri(inbox);
-            var dom = $"{subUri.Scheme}://{subUri.Host}";
-
-            var claims = new Claim[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, subject.Id)
-            };
-
-            var signingCreds = new SigningCredentials(key.Key, SecurityAlgorithms.EcdsaSha256);
-            signingCreds.Key.KeyId = key.Id;
-            signingCreds.CryptoProviderFactory = new _cryptoProviderFactory();
-
-            var jwt = new JwtSecurityToken(
-                audience: dom,
-                claims: claims,
-                notBefore: DateTime.UtcNow,
-                expires: DateTime.UtcNow.Add(TimeSpan.FromMinutes(10)),
-                signingCredentials: signingCreds
-                );
-
-            return new JwtSecurityTokenHandler().WriteToken(jwt);
-        }
-
-        public async Task<string> VerifyJWS(string inbox, string serialized)
-        {
-            var handler = new JwtSecurityTokenHandler();
-            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(serialized);
-
-            var subUri = new Uri(inbox);
-            var dom = $"{subUri.Scheme}://{subUri.Host}";
-
-            if (jwt.Header.Kid == null) return null;
-            if (!jwt.Audiences.Contains(dom)) return null;
-
-            var originId = jwt.Subject;
-            var originEntity = await _store.GetEntity(originId, true);
-            var verifyKey = await GetKey(originEntity, jwt.Header.Kid);
-            if (verifyKey == null) return null;
-
-            var tokenValidation = new TokenValidationParameters()
-            {
-                IssuerSigningKey = verifyKey.Key,
-                RequireSignedTokens = true,
-                ValidateAudience = false,
-                ValidateIssuer = false,
-                CryptoProviderFactory = new _cryptoProviderFactory()
-            };
-
-            return handler.ValidateToken(serialized, tokenValidation, out var ser) != null ? originId : null;
+            return resultList;
         }
 
         public static HashSet<string> GetAudienceIds(ASObject @object)
@@ -299,7 +134,7 @@ namespace Kroeg.Server.Services
             targetIds.Remove("https://www.w3.org/ns/activitystreams#Public");
 
             var targets = new HashSet<string>();
-            var stack = new Stack<Tuple<int, APEntity>>();
+            var stack = new Stack<Tuple<int, APEntity, bool>>();
             var salmons = new HashSet<string>();
             foreach (var item in targetIds)
             {
@@ -309,7 +144,7 @@ namespace Kroeg.Server.Services
                 var iscollection = data["type"].Any(a => (string)a.Primitive == "Collection" || (string)a.Primitive == "OrderedCollection");
                 var shouldForward = entity.IsOwner && (forward == null || data["attributedTo"].Any(a => (string)a.Primitive == forward));
                 if (!iscollection || shouldForward)
-                    stack.Push(new Tuple<int, APEntity>(0, entity));
+                    stack.Push(new Tuple<int, APEntity, bool>(0, entity, false));
             }
 
             while (stack.Any())
@@ -319,14 +154,21 @@ namespace Kroeg.Server.Services
                 var data = entity.Item2.Data;
                 var iscollection = data["type"].Any(a => (string)a.Primitive == "Collection" || (string)a.Primitive == "OrderedCollection");
                 var shouldForward = entity.Item2.IsOwner && (forward == null || data["attributedTo"].Any(a => (string)a.Primitive == forward));
-
+                var useSharedInbox = (entity.Item2.IsOwner && entity.Item2.Type == "_following");
                 if ((iscollection && shouldForward) && entity.Item1 < depth)
                 {
                     foreach (var item in await _collectionTools.GetAll(entity.Item2.Id))
-                        stack.Push(new Tuple<int, APEntity>(entity.Item1 + 1, item));
+                        stack.Push(new Tuple<int, APEntity, bool>(entity.Item1 + 1, item, useSharedInbox));
                 }
                 else if (forward == null && _configuration.IsActor(data))
                 {
+                    if (entity.Item3)
+                    {
+                        if (data["sharedInbox"].Any())
+                            targets.Add((string)data["inbox"].First().Primitive);
+                        continue;
+                    }
+
                     if (data["inbox"].Any())
                         targets.Add((string)data["inbox"].First().Primitive);
                     else if (data["_:salmonUrl"].Any())

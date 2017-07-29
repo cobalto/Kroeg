@@ -31,8 +31,9 @@ namespace Kroeg.Server.BackgroundTasks
         private readonly DeliveryService _deliveryService;
         private readonly APContext _context;
         private readonly EntityData _data;
+        private readonly SignatureVerifier _verifier;
 
-        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider, DeliveryService deliveryService, APContext context, EntityData data) : base(item)
+        public DeliverToActivityPubTask(EventQueueItem item, IEntityStore entityStore, EntityFlattener entityFlattener, IServiceProvider serviceProvider, DeliveryService deliveryService, APContext context, EntityData data, SignatureVerifier verifier) : base(item)
         {
             _entityStore = entityStore;
             _entityFlattener = entityFlattener;
@@ -40,6 +41,7 @@ namespace Kroeg.Server.BackgroundTasks
             _deliveryService = deliveryService;
             _context = context;
             _data = data;
+            _verifier = verifier;
         }
 
         private async Task<string> _buildSignature(string ownerId, HttpRequestMessage message)
@@ -79,7 +81,7 @@ namespace Kroeg.Server.BackgroundTasks
             var owner = await _entityStore.GetEntity((string) entity.Data["actor"].First().Primitive, false);
             var unflattened = await _entityFlattener.Unflatten(_entityStore, entity);
 
-            var token = await _deliveryService.BuildFederatedJWS(owner, Data.TargetInbox);
+            var token = await _verifier.BuildJWS(owner, Data.TargetInbox);
 
             var hc = new HttpClient();
             var serialized = unflattened.Serialize(true).ToString(Formatting.None);

@@ -29,6 +29,8 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Net.WebSockets;
+using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -231,10 +233,12 @@ namespace Kroeg.Server.Middleware
             private readonly CollectionTools _collectionTools;
             private readonly INotifier _notifier;
             private readonly JwtTokenSettings _tokenSettings;
+            private readonly SignatureVerifier _verifier;
 
             public GetEntityHandler(APContext acontext, EntityFlattener flattener, IEntityStore mainStore,
                 AtomEntryGenerator entryGenerator, IServiceProvider serviceProvider, DeliveryService deliveryService,
-                EntityData entityData, ClaimsPrincipal user, CollectionTools collectionTools, INotifier notifier, JwtTokenSettings tokenSettings)
+                EntityData entityData, ClaimsPrincipal user, CollectionTools collectionTools, INotifier notifier, JwtTokenSettings tokenSettings,
+                SignatureVerifier verifier)
             {
                 _context = acontext;
                 _flattener = flattener;
@@ -247,6 +251,7 @@ namespace Kroeg.Server.Middleware
                 _collectionTools = collectionTools;
                 _notifier = notifier;
                 _tokenSettings = tokenSettings;
+                _verifier = verifier;
             }
 
             internal async Task<ASObject> Get(string url, IQueryCollection arguments, HttpContext context)
@@ -266,11 +271,7 @@ namespace Kroeg.Server.Middleware
 
                 if (userId == null && !audience.Contains("https://www.w3.org/ns/activitystreams#Public"))
                 {
-                    var authToken = context.Request.Headers["Authorization"];
-                    if (authToken.Count == 0) throw new UnauthorizedAccessException("You need authorization!");
-
-                    var jwt = authToken.First().Split(' ')[1];
-                    userId = await _deliveryService.VerifyJWS(url, jwt);
+                    userId = await _verifier.Verify(url, context);
                 }
 
                 if (entity.Data["attributedTo"].Concat(entity.Data["actor"]).All(a => (string)a.Primitive != userId) && !audience.Contains("https://www.w3.org/ns/activitystreams#Public") && (userId == null || !audience.Contains(userId)))
@@ -534,12 +535,8 @@ namespace Kroeg.Server.Middleware
                     case "_inbox":
                         var actorObj = @object["actor"].First();
                         string subjectId = (string)actorObj.Primitive ?? (string) actorObj.SubObject["id"].First().Primitive;
-                        if (context.Request.Headers["Authorization"].Any())
-                        {
-                            var jwt = context.Request.Headers["Authorization"].First().Split(' ')[1];
-                            subjectId = await _deliveryService.VerifyJWS(fullpath, jwt);
-                            if (subjectId == null) throw new UnauthorizedAccessException("federation requires JWS");
-                        }
+                        subjectId = await _verifier.Verify(fullpath, context) ?? subjectId;
+                        if (subjectId == null) throw new UnauthorizedAccessException("Invalid signature");
                         return await ServerToServer(original, @object, subjectId);
                     case "_outbox":
                         var userId = original.Data["attributedTo"].FirstOrDefault() ?? original.Data["actor"].FirstOrDefault();

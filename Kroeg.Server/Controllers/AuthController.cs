@@ -24,6 +24,8 @@ using Microsoft.Extensions.Configuration;
 using Kroeg.Server.Services;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Linq;
+using Kroeg.Server.BackgroundTasks;
+using System.IO;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -44,8 +46,9 @@ namespace Kroeg.Server.Controllers
         private readonly IDataProtector _dataProtector;
         private readonly IConfigurationRoot _configuration;
         private readonly DeliveryService _deliveryService;
+        private readonly SignatureVerifier _verifier;
 
-        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider, IConfigurationRoot configuration, DeliveryService deliveryService)
+        public AuthController(APContext context, UserManager<APUser> userManager, SignInManager<APUser> signInManager, JwtTokenSettings tokenSettings, EntityFlattener entityFlattener, IEntityStore entityStore, AtomEntryParser entryParser, AtomEntryGenerator entryGenerator, EntityData entityConfiguration, IDataProtectionProvider dataProtectionProvider, IConfigurationRoot configuration, DeliveryService deliveryService, SignatureVerifier verifier)
         {
             _context = context;
             _userManager = userManager;
@@ -59,6 +62,7 @@ namespace Kroeg.Server.Controllers
             _dataProtector = dataProtectionProvider.CreateProtector("OAuth tokens");
             _configuration = configuration;
             _deliveryService = deliveryService;
+            _verifier = verifier;
         }
 
         public class LoginViewModel
@@ -199,6 +203,35 @@ namespace Kroeg.Server.Controllers
             return Content(keyObj.Serialize().ToString(), "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"");
         }
 
+        [HttpPost("sharedInbox")]
+        public async Task<IActionResult> SharedInbox()
+        {
+            var userId = await _verifier.Verify(Request.Scheme + "://" + Request.Host.ToUriComponent() + Request.Path, HttpContext);
+            if (userId == null) return Unauthorized();
+            var reader = new StreamReader(Request.Body);
+            var data = ASObject.Parse(await reader.ReadToEndAsync());
+
+            if (!_entityConfiguration.IsActivity(data)) return StatusCode(403, "Not an activity?");
+            if (!data["actor"].Any((a) => (string)a.Primitive == userId)) return StatusCode(403, "Invalid signature!");
+
+            var temporaryStore = new StagingEntityStore(_entityStore);
+            var resultEntity = await _entityFlattener.FlattenAndStore(temporaryStore, data, false);
+            temporaryStore.TrimDown((new Uri(new Uri(userId), "/")).ToString());
+            await temporaryStore.CommitChanges(); // shouuuuld be safe
+
+            var users = await _deliveryService.GetUsersForSharedInbox(data);
+
+            foreach (var user in users)
+            {
+                if (user.IsOwner)
+                    _context.EventQueue.Add(DeliverToActivityPubTask.Make(new DeliverToActivityPubData { ObjectId = resultEntity.Id, TargetInbox = (string) user.Data["inbox"].First().Primitive }));
+            }
+
+            await _context.SaveChangesAsync();
+
+            return StatusCode(202);
+        }
+
         [HttpGet("oauth")]
         public async Task<IActionResult> DoOAuthToken(string id, string response_type, string redirect_uri, string state)
         {
@@ -327,7 +360,7 @@ namespace Kroeg.Server.Controllers
         {
             var actor = await _entityStore.GetEntity(id, false);
             if (actor == null || !actor.IsOwner) return NotFound();
-            var key = await _deliveryService.GetKey(actor);
+            var key = await _verifier.GetJWK(actor);
             var deser = key.Key;
             deser.D = null;
 

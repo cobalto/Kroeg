@@ -125,6 +125,7 @@ namespace Kroeg.Server
                 return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor);
             });
             services.AddSingleton<TemplateService>();
+            services.AddTransient<SignatureVerifier>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
