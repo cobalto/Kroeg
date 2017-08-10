@@ -26,7 +26,7 @@ namespace Kroeg.Server.Controllers
 
             var entity = await _entityStore.GetEntity(url, true);
 
-            return Content(await _templateService.ParseTemplate("object", _entityStore, entity), "text/html");
+            return Content(await _templateService.ParseTemplate("page", _entityStore, entity), "text/html");
         }
 
         [HttpGet("")]
@@ -37,7 +37,7 @@ namespace Kroeg.Server.Controllers
 
             var obj = (APEntity) HttpContext.Items["object"];
 
-            return Content(await _templateService.ParseTemplate("object", _entityStore, obj), "text/html");
+            return Content(await _templateService.ParseTemplate("page", _entityStore, obj), "text/html");
         }
     }
 }

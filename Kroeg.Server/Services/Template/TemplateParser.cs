@@ -42,6 +42,17 @@ namespace Kroeg.Server.Services.Template
                     entry.Type = command.Split(' ')[0];
                     ifStack.Push(result.Count);
                 }
+                else if (command.StartsWith("else"))
+                {
+                    entry.Type = "jump";
+
+                    var lastPos = ifStack.Pop();
+                    var res = result[lastPos];
+                    res.Offset = result.Count + 1;
+                    result[lastPos] = res;
+
+                    ifStack.Push(result.Count);
+                }
                 else if (command.StartsWith("end"))
                 {
                     entry.Type = "end";

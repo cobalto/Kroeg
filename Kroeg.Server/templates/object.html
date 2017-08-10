@@ -1,0 +1,14 @@
+﻿{{if is Create}}
+	{{$object render:object}}
+{{else}}
+	{{if is Activity}}
+	Activity:
+		{{$object render:object}}
+	{{else}}
+		{{if is Note}}
+			{{render:objects/note}}
+		{{else}}
+			ID: <a href="{{$id}}.json">{{$id}}</a>
+		{{end}}
+	{{end}}
+{{end}}

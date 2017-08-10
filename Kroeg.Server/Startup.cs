@@ -124,7 +124,7 @@ namespace Kroeg.Server
                 var httpAccessor = provider.GetService<IHttpContextAccessor>();
                 return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor);
             });
-            services.AddSingleton<TemplateService>();
+            services.AddTransient<TemplateService>();
             services.AddTransient<SignatureVerifier>();
         }
 
