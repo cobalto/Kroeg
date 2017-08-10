@@ -61,11 +61,11 @@ namespace Kroeg.Server.Services.EntityStore
 
             if (_context != null)
             {
-                var deliveryService = _serviceProvider.GetRequiredService<DeliveryService>();
+                var signatureVerifier = _serviceProvider.GetRequiredService<SignatureVerifier>();
                 var user = await Next.GetEntity(_context.User.FindFirstValue(JwtTokenSettings.ActorClaim), false);
                 if (user != null)
                 {
-                    var jwt = await deliveryService.BuildFederatedJWS(user, id);
+                    var jwt = await signatureVerifier.BuildJWS(user, id);
                     htc.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", jwt);
                 }
             }

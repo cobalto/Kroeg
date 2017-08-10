@@ -554,6 +554,7 @@ namespace Kroeg.Server.Middleware
                 typeof(DeleteHandler),
                 // likes, follows, announces, and undos change collections. Ownership has been verified, so it's prooobably safe to commit changes into the database.
                 typeof(CommitChangesHandler),
+                typeof(FollowResponseHandler),
                 typeof(LikeFollowAnnounceHandler),
                 typeof(UndoHandler),
                 typeof(DeliveryHandler)
@@ -630,6 +631,7 @@ namespace Kroeg.Server.Middleware
                 // commit changes before modifying collections
                 typeof(UpdateDeleteActivityHandler),
                 typeof(CommitChangesHandler),
+                typeof(AcceptRejectFollowHandler),
                 typeof(FollowLikeHandler),
                 typeof(AddRemoveActivityHandler),
                 typeof(UndoActivityHandler),
