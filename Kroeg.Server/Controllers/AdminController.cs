@@ -30,7 +30,7 @@ using System.IO;
 
 namespace Kroeg.Server.Controllers
 {
-    [Route("admin"), Authorize("admin")]
+    [Route("admin")]
     public class AdminController : Controller
     {
         private readonly APContext _context;

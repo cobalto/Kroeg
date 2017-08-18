@@ -155,6 +155,8 @@ namespace Kroeg.Server.Middleware
             if (readConverter != null)
                 data = await readConverter.Parse(context.Request.Body);
 
+            if (needRead && readConverter != null && writeConverter == null) writeConverter = readConverter;
+
             if (data == null && needRead && targetEntity != null)
             {
                 context.Response.StatusCode = 415;
@@ -541,7 +543,7 @@ namespace Kroeg.Server.Middleware
                     case "_outbox":
                         var userId = original.Data["attributedTo"].FirstOrDefault() ?? original.Data["actor"].FirstOrDefault();
                         if (userId == null || _user.FindFirst(JwtTokenSettings.ActorClaim).Value ==
-                            (string) userId.Primitive) return await _clientToServer(original, @object);
+                            (string) userId.Primitive) return await ClientToServer(original, @object);
                         throw new UnauthorizedAccessException("Cannot post to the outbox of another actor");
                 }
 
@@ -571,7 +573,9 @@ namespace Kroeg.Server.Middleware
                 APEntity flattened;
 
                 var subjectUri = new Uri(subject);
-                var prefix = $"{subjectUri.Scheme}://{subjectUri.Host}/";
+                var prefix = $"{subjectUri.Scheme}://{subjectUri.Host}";
+                if (subjectUri.Port != 0) prefix += $":{subjectUri.Port}";
+                prefix += "/";
 
                 var id = (string) activity["id"].Single().Primitive;
                 flattened = await _mainStore.GetEntity(id, false);
@@ -641,7 +645,7 @@ namespace Kroeg.Server.Middleware
                 typeof(WebSubHandler)
             };
 
-            private async Task<ASObject> _clientToServer(APEntity outbox, ASObject activity)
+            public async Task<ASObject> ClientToServer(APEntity outbox, ASObject activity)
             {
                 var stagingStore = new StagingEntityStore(_mainStore);
                 var userId = (string) outbox.Data["attributedTo"].Single().Primitive;

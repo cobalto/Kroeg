@@ -31,7 +31,8 @@ namespace Kroeg.Server.Models
             {
                 Id = id,
                 Data = @object,
-                Type = type
+                Type = type,
+                Updated = DateTime.Now
             };
         }
 
@@ -48,7 +49,8 @@ namespace Kroeg.Server.Models
                 Id = id,
                 Data = @object,
                 Type = type,
-                IsOwner = isOwner
+                IsOwner = isOwner,
+                Updated = DateTime.Now
             };
         }
 

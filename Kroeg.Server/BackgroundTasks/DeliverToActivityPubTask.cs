@@ -70,7 +70,7 @@ namespace Kroeg.Server.BackgroundTasks
             var signed = Convert.ToBase64String(magic.Sign(Encoding.UTF8.GetBytes(toSign.ToString())));
 
             var ownerOrigin = new Uri(ownerId);
-            var keyId = $"{ownerOrigin.Scheme}://{ownerOrigin.Host}{_data.BasePath}auth/key?id={Uri.EscapeDataString(ownerId)}";
+            var keyId = ownerId + "#key";
 
             return $"keyId=\"{keyId}\",algorithm=\"rsa-sha256\",headers=\"{string.Join(" ", headers)}\",signature=\"{signed}\"";
         }
@@ -107,7 +107,7 @@ namespace Kroeg.Server.BackgroundTasks
         public override async Task Go()
         {
             var inbox = await _entityStore.GetEntity(Data.TargetInbox, false);
-            if (inbox != null && inbox.IsOwner && inbox.Type == "_inbox" && false)
+            if (inbox != null && inbox.IsOwner && inbox.Type == "_inbox")
             {
                 var item = await _entityStore.GetEntity(Data.ObjectId, false);
 

@@ -41,6 +41,8 @@ namespace Kroeg.ActivityStreams
                     arr.Add(new ASTerm { Primitive = val.Value<decimal>() });
                 else if (val.Type == JTokenType.Integer)
                     arr.Add(new ASTerm { Primitive = val.Value<int>() });
+                else if (val.Type == JTokenType.Boolean)
+                    arr.Add(new ASTerm { Primitive = val.Value<bool>() });
                 else
                     arr.Add(new ASTerm { Primitive = val.Value<string>() });
             }

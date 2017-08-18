@@ -7,6 +7,8 @@ using Kroeg.Server.Models;
 using Kroeg.Server.Services;
 using Kroeg.Server.Services.EntityStore;
 using Kroeg.Server.Tools;
+using Kroeg.ActivityStreams;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kroeg.Server.Middleware.Handlers.ServerToServer
 {
@@ -14,8 +16,10 @@ namespace Kroeg.Server.Middleware.Handlers.ServerToServer
     {
         private readonly CollectionTools _collection;
         private readonly EntityData _data;
+        private readonly RelevantEntitiesService _relevantEntities;
+        private readonly IServiceProvider _serviceProvider;
 
-        public LikeFollowAnnounceHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, CollectionTools collection, EntityData data) : base(entityStore, mainObject, actor, targetBox, user)
+        public LikeFollowAnnounceHandler(StagingEntityStore entityStore, APEntity mainObject, APEntity actor, APEntity targetBox, ClaimsPrincipal user, CollectionTools collection, EntityData data, RelevantEntitiesService relevantEntities, IServiceProvider serviceProvider) : base(entityStore, mainObject, actor, targetBox, user)
         {
             _collection = collection;
             _data = data;
@@ -23,6 +27,24 @@ namespace Kroeg.Server.Middleware.Handlers.ServerToServer
 
         public override async Task<bool> Handle()
         {
+            if (MainObject.Type == "Follow")
+            {
+                if (Actor.Data["_:locked"].Any(a => !(bool) a.Primitive) || Actor.Data["locked"].Any(a => !(bool) a.Primitive))
+                {
+                    var accept = new ASObject();
+                    accept.Replace("type", new ASTerm("Accept"));
+                    accept.Replace("actor", new ASTerm(Actor.Id));
+                    accept.Replace("object", new ASTerm(MainObject.Id));
+
+                    var claims = new ClaimsPrincipal();
+                    var handler = ActivatorUtilities.CreateInstance<GetEntityMiddleware.GetEntityHandler>(_serviceProvider, claims);
+                    var outbox = await EntityStore.GetEntity((string)Actor.Data["outbox"].First().Primitive, false);
+                    await handler.ClientToServer(outbox, accept);
+                }
+
+                return true;
+            }
+
             if (MainObject.Type != "Like" && MainObject.Type != "Announce") return true;
 
             var toFollowOrLike = await EntityStore.GetEntity((string) MainObject.Data["object"].Single().Primitive, false);

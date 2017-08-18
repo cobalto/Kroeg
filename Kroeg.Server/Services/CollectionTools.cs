@@ -53,10 +53,16 @@ namespace Kroeg.Server.Services
 
         public async Task<List<CollectionItem>> GetItems(string id, int fromId = int.MaxValue, int count = 10)
         {
-            IQueryable<CollectionItem> data = _context.CollectionItems.Where(a => a.CollectionId == id && a.CollectionItemId < fromId).OrderByDescending(a => a.CollectionItemId).Include(a => a.Element);
+            var isOwner = false;
+            var entity = await _context.Entities.FirstOrDefaultAsync(a => a.Id == id && a.IsOwner);
             var user = _getUser();
+            if (entity != null && entity.Data["attributedTo"].Any(a => (string)a.Primitive == user)) isOwner = true;
+
+            IQueryable<CollectionItem> data = _context.CollectionItems.Where(a => a.CollectionId == id && a.CollectionItemId < fromId).OrderByDescending(a => a.CollectionItemId).Include(a => a.Element);
             if (user == null)
                 return await data.Where(a => a.IsPublic).Take(count).ToListAsync();
+            else if (isOwner)
+                return await data.Take(count).ToListAsync();
             else
             {
                 return await data.Where((a) => _verifyAudience(user, a)).Take(count).ToListAsync();
@@ -65,8 +71,12 @@ namespace Kroeg.Server.Services
 
         public async Task<List<APEntity>> GetAll(string id)
         {
-            IQueryable<CollectionItem> list = _context.CollectionItems.Where(a => a.CollectionId == id).Include(a => a.Element).OrderByDescending(a => a.CollectionItemId);
+            var isOwner = false;
+            var entity = await _context.Entities.FirstOrDefaultAsync(a => a.Id == id && a.IsOwner);
             var user = _getUser();
+            if (entity != null && entity.Data["attributedTo"].Any(a => (string)a.Primitive == user)) isOwner = true;
+
+            IQueryable<CollectionItem> list = _context.CollectionItems.Where(a => a.CollectionId == id).Include(a => a.Element).OrderByDescending(a => a.CollectionItemId);
             if (user == null)
                 list = list.Where(a => a.IsPublic);
 

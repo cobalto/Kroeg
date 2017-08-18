@@ -6,6 +6,7 @@
         public ASTerm(string value) { Primitive = value; }
         public ASTerm(int value) { Primitive = value; }
         public ASTerm(double value) { Primitive = value; }
+        public ASTerm(bool value) { Primitive = value; }
         public ASTerm(ASObject value) { SubObject = value; }
 
         public object Primitive { get; set; }

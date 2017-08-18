@@ -46,7 +46,7 @@ namespace Kroeg.Server.Services
             var stringKey = (string)key.Data["publicKeyPem"].First().Primitive;
             if (!stringKey.StartsWith("-----BEGIN PUBLIC KEY-----")) return new Tuple<bool, string>(false, null);
 
-            var toDecode = stringKey.Remove(0, stringKey.IndexOf('\n'));
+            var toDecode = stringKey.Trim().Remove(0, stringKey.IndexOf('\n'));
             toDecode = toDecode.Remove(toDecode.LastIndexOf('\n')).Replace("\n", "");
 
             var signKey = ASN1.ToRSA(Convert.FromBase64String(toDecode));

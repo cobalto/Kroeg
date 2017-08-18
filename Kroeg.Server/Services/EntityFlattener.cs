@@ -57,7 +57,7 @@ namespace Kroeg.Server.Tools
 
         private static readonly HashSet<string> IdHolding = new HashSet<string>
         {
-            "subject", "relationship", "actor", "attributedTo", "attachment", "bcc", "bto", "cc", "context", "current", "first", "generator", "icon", "image", "inReplyTo", "items", "instrument", "orderedItems", "last", "location", "next", "object", "oneOf", "anyOf", "origin", "prev", "preview", "replies", "result", "audience", "partOf", "tag", "target", "to", "describes", "formerType", "streams"
+            "subject", "relationship", "actor", "attributedTo", "attachment", "bcc", "bto", "cc", "context", "current", "first", "generator", "icon", "image", "inReplyTo", "items", "instrument", "orderedItems", "last", "location", "next", "object", "oneOf", "anyOf", "origin", "prev", "preview", "replies", "result", "audience", "partOf", "tag", "target", "to", "describes", "formerType", "streams", "publicKey"
         };
 
         private static readonly HashSet<string> MayNotFlatten = new HashSet<string>
@@ -84,7 +84,13 @@ namespace Kroeg.Server.Tools
             endpoints.Replace("id", new ASTerm((string)null));
 
             data.Replace("endpoints", new ASTerm(endpoints));
-            data.Replace("publicKey", new ASTerm(basePath + "auth/key?id=" + Uri.EscapeDataString(entity.Id)));
+
+            var keyObj = new ASObject();
+            keyObj.Replace("owner", new ASTerm(entity.Id));
+            keyObj.Replace("publicKeyPem", new ASTerm(data));
+            keyObj.Replace("id", new ASTerm($"{entity.Id}#key"));
+
+            data.Replace("publicKey", new ASTerm(keyObj));
             data.Replace("sharedInbox", new ASTerm(_configuration.BaseUri + "/auth/sharedInbox"));
             return data;
         }
@@ -140,7 +146,7 @@ namespace Kroeg.Server.Tools
             if (_configuration.IsActor(@object) && entity.IsOwner)
                 @object = _getEndpoints(entity);
 
-            var myid = (string)@object["id"].First().Primitive;
+            var myid = (string)@object["id"].FirstOrDefault()?.Primitive;
             if (myid != null)
                 alreadyMapped[myid] = entity;
 

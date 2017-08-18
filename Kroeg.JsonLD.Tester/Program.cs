@@ -1,8 +1,10 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Kroeg.JsonLD.Tester
 {
@@ -23,11 +25,6 @@ namespace Kroeg.JsonLD.Tester
 
             var expanded = await api.Expand(data);
             Console.WriteLine(expanded.ToString());
-
-            var context = await api.BuildContext("http://www.w3.org/ns/activitystreams");
-            var compacted = api.CompactExpanded(context, expanded);
-
-            Console.WriteLine(compacted.ToString());
             return 5;
         }
 

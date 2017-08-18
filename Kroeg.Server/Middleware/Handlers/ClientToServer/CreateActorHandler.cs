@@ -85,6 +85,9 @@ namespace Kroeg.Server.Middleware.Handlers.ClientToServer
 
             _context.SalmonKeys.Add(key);
 
+            if (!activityData["locked"].Any() && !activityData["_:locked"].Any())
+                activityData.Replace("_:locked", new ASTerm(false));
+
             if (!activityData["actor"].Any())
                 activityData["actor"].Add(new ASTerm(objectEntity.Id));
 
