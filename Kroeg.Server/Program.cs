@@ -20,7 +20,7 @@ namespace Kroeg.Server
             builder.Path = (new Uri(config.GetSection("Kroeg")["BaseUri"])).AbsolutePath ?? "/";
 
             var host = new WebHostBuilder()
-                .UseKestrel(a => a.ThreadCount = 16)
+                .UseKestrel()
                 .UseContentRoot(Directory.GetCurrentDirectory())
                 .UseIISIntegration()
                 .UseStartup<Startup>()

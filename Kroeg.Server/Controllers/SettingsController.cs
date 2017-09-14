@@ -24,6 +24,7 @@ using Kroeg.Server.Services;
 using Newtonsoft.Json.Linq;
 using Kroeg.Server.Middleware.Handlers.ClientToServer;
 using Kroeg.Server.Middleware.Handlers.Shared;
+using Kroeg.Server.Services.Template;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -69,8 +70,9 @@ namespace Kroeg.Server.Controllers
         private readonly UserManager<APUser> _userManager;
         private readonly RelevantEntitiesService _relevantEntities;
         private readonly CollectionTools _collectionTools;
+        private readonly TemplateService _templateService;
 
-        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager, RelevantEntitiesService relevantEntities, CollectionTools collectionTools)
+        public SettingsController(APContext context, IEntityStore entityStore, EntityData entityData, JwtTokenSettings tokenSettings, SignInManager<APUser> signInManager, IServiceProvider provider, IConfigurationRoot configuration, EntityFlattener flattener, UserManager<APUser> userManager, RelevantEntitiesService relevantEntities, CollectionTools collectionTools, TemplateService templateService)
         {
             _context = context;
             _entityStore = entityStore;
@@ -83,6 +85,13 @@ namespace Kroeg.Server.Controllers
             _userManager = userManager;
             _relevantEntities = relevantEntities;
             _collectionTools = collectionTools;
+            _templateService = templateService;
+        }
+
+        [HttpGet("templates")]
+        public IActionResult Templates()
+        {
+            return Json(_templateService.Templates);
         }
 
         private async Task<BaseModel> _getUserInfo()

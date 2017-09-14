@@ -1,29 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
-
   <PropertyGroup>
-    <TargetFramework>netcoreapp1.1</TargetFramework>
+    <TargetFramework>netcoreapp2.0</TargetFramework>
     <DebugType>portable</DebugType>
   </PropertyGroup>
-
   <ItemGroup>
-    <PackageReference Include="Asn1" Version="1.0.6" />
-    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore" Version="1.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="1.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="1.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="1.1.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="1.1.2" />
-    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="1.0.2" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="1.1.1" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="1.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="1.1.1" />
-    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="5.1.4" />
-    <PackageReference Include="Npgsql" Version="3.2.2" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="1.1.0" />
-    <PackageReference Include="StackExchange.Redis" Version="1.2.4" />
+    <PackageReference Include="Asn1" Version="*" />
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore.StaticFiles" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="*" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="*" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="*" />
+    <PackageReference Include="Npgsql" Version="*" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="*" />
+    <PackageReference Include="StackExchange.Redis" Version="*" />
   </ItemGroup>
   <ItemGroup>
-    <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="1.0.0-msbuild3-final" />
+    <DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="*" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kroeg.ActivityStreams\Kroeg.ActivityStreams.csproj" />
@@ -32,5 +30,4 @@
     <Folder Include="wwwroot\images\" />
     <Folder Include="wwwroot\images\" />
   </ItemGroup>
-
 </Project>

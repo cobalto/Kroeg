@@ -20,6 +20,9 @@ using Kroeg.Server.Services.Notifiers.Redis;
 using Kroeg.Server.Services.Notifiers;
 using Microsoft.AspNetCore.Http;
 using Kroeg.Server.Services.Template;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 
 namespace Kroeg.Server
 {
@@ -61,13 +64,10 @@ namespace Kroeg.Server
                 options.Password.RequireNonAlphanumeric = false;
                 options.Password.RequireUppercase = false;
                 options.Password.RequireLowercase = false;
-
-                options.Cookies.ApplicationCookie.ExpireTimeSpan = TimeSpan.FromDays(150);
-                options.Cookies.ApplicationCookie.LoginPath = "/auth/login";
             });
             
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration.GetSection("Kroeg")["TokenSigningKey"]));
-            services.AddSingleton(new JwtTokenSettings
+            var tokenSettings = new JwtTokenSettings
             {
                 Audience =Configuration.GetSection("Kroeg")["BaseUri"],
                 Issuer = Configuration.GetSection("Kroeg")["BaseUri"],
@@ -87,7 +87,8 @@ namespace Kroeg.Server
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero
                 }
-            });
+            };
+            services.AddSingleton(tokenSettings);
 
             services.AddSingleton(new EntityData(Configuration.GetSection("Kroeg"))
             {
@@ -126,6 +127,14 @@ namespace Kroeg.Server
             });
             services.AddTransient<TemplateService>();
             services.AddTransient<SignatureVerifier>();
+
+            services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                .AddCookie((options) => {
+                    options.LoginPath = "/auth/login";
+                })
+                .AddJwtBearer((options) => {
+                    options.TokenValidationParameters = tokenSettings.ValidationParameters;
+                });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -134,25 +143,10 @@ namespace Kroeg.Server
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
             loggerFactory.AddDebug();
 
-            app.UseIdentity();
             app.UseWebSockets();
 
-            var tokenSettings = app.ApplicationServices.GetRequiredService<JwtTokenSettings>();
-
-            app.UseJwtBearerAuthentication(new JwtBearerOptions
-            {
-                AutomaticAuthenticate = true,
-                AutomaticChallenge = false,
-                TokenValidationParameters = tokenSettings.ValidationParameters
-            });
-
-            app.UseCookieAuthentication(new CookieAuthenticationOptions
-            {
-                AutomaticAuthenticate = true,
-                AutomaticChallenge = false
-            });
-
             app.UseStaticFiles();
+            app.UseAuthentication();
 
             app.UseDeveloperExceptionPage();
             app.UseMiddleware<WebSubMiddleware>();

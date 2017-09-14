@@ -6,16 +6,19 @@ using Kroeg.Server.Models;
 using Kroeg.Server.Services.EntityStore;
 using Microsoft.AspNetCore.Http;
 using System;
+using Kroeg.Server.Salmon;
 
 namespace Kroeg.Server.Tools
 {
     public class EntityFlattener
     {
         private readonly EntityData _configuration;
+        private readonly APContext _context;
 
-        public EntityFlattener(EntityData configuration, IHttpContextAccessor _accessor)
+        public EntityFlattener(APContext context, EntityData configuration)
         {
             _configuration = configuration;
+            _context = context;
         }
 
         public async Task<APEntity> FlattenAndStore(IEntityStore store, ASObject @object, bool generateId = true, Dictionary<string, APEntity> dict = null)
@@ -66,7 +69,7 @@ namespace Kroeg.Server.Tools
         };
 
 
-        private ASObject _getEndpoints(APEntity entity)
+        private async Task<ASObject> _getEndpoints(APEntity entity)
         {
             var data = entity.Data;
             var idu = new Uri(entity.Id);
@@ -85,9 +88,13 @@ namespace Kroeg.Server.Tools
 
             data.Replace("endpoints", new ASTerm(endpoints));
 
+            var key = await _context.GetKey(entity.Id);
+            var salm = new MagicKey(key.PrivateKey);
+            var pemData = salm.AsPEM;
+
             var keyObj = new ASObject();
             keyObj.Replace("owner", new ASTerm(entity.Id));
-            keyObj.Replace("publicKeyPem", new ASTerm(data));
+            keyObj.Replace("publicKeyPem", new ASTerm(pemData));
             keyObj.Replace("id", new ASTerm($"{entity.Id}#key"));
 
             data.Replace("publicKey", new ASTerm(keyObj));
@@ -144,7 +151,7 @@ namespace Kroeg.Server.Tools
 
             var @object = entity.Data;
             if (_configuration.IsActor(@object) && entity.IsOwner)
-                @object = _getEndpoints(entity);
+                @object = await _getEndpoints(entity);
 
             var myid = (string)@object["id"].FirstOrDefault()?.Primitive;
             if (myid != null)
