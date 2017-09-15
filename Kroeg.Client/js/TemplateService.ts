@@ -27,13 +27,18 @@ export class TemplateService {
 }
 
 export class RenderResult {
-    public result: string;
-    public usedIds: string[] = [];
+    public result: string[] = [];
+    public subRender: {id: string, template: string}[] = [];
 }
 
 export class TemplateRenderer {
-    public constructor(private templateService: TemplateService, private entityStore: EntityStore) {
+    private templates: {[item: string]: Template};
 
+    public constructor(private templateService: TemplateService, private entityStore: EntityStore) {
+    }
+
+    public async prepare() {
+        this.templates = await this.templateService.getTemplates();
     }
 
     private _parseCondition(object: AS.ASObject, text: string): boolean {
@@ -58,10 +63,16 @@ export class TemplateRenderer {
         return false;
     }
 
-    private async _parseCommand(object: AS.ASObject, command: string, renderResult: RenderResult): Promise<string>
+    private _parseCommand(object: AS.ASObject, command: string, renderResult: RenderResult): string
     {
         let result: any = null;
         let isHtml = false;
+        let depend: string = null;
+        if (command.indexOf('%') != -1) {
+            let nodepend = command.split(' %', 1)[0];
+            depend = "$" + command.substring(command.indexOf('%') + 1);
+            command = nodepend;
+        }
         for (let asf of command.split(' ')) {
             if (asf.startsWith("$"))
             {
@@ -75,55 +86,53 @@ export class TemplateRenderer {
 
                 if (results.length == 0) result = null;
                 else result = results;
-            }
-            else if (asf.startsWith("%")) {
-                if (result === null) continue;
-                let id: string = null;
-                if (Array.isArray(result))
-                    id = result[0] as string;
-                else id = result as string;
-
-                const entity = await this.entityStore.get(id);
-                const name = asf.substring(1);
-                let results = [];
-                for (let item of AS.get(entity, name)) {
-                    if ((typeof item) == "object" && !Array.isArray(item)) results.push(JSON.stringify(item));
-                    else results.push(item);
-                }
-
-                if (results.length == 0) result = null;
-                else result = results;
             } else if (asf.startsWith("'")) {
                 if (result === null) result = asf.substring(1);
             } else if (asf == "ishtml") {
                 isHtml = true;
             } else if (asf.startsWith("render:")) {
                 const template = asf.substring(7);
-                if (result == null) return await this._render(template, object.id, renderResult);
+                if (result == null) {
+                    renderResult.subRender.push({template, id: object.id});
+                    return null;
+                }
                 let id: string = null;
                 if (Array.isArray(result))
                     id = result[0] as string;
                 else id = result as string;
 
-                return await this._render(template, id, renderResult);
+                renderResult.subRender.push({id, template});
+                return null;
             }
+        }
+
+        if (depend != null) {
+            if (Array.isArray(result)) result = result[0];
+            console.log(JSON.stringify(command), "||", depend, "||", result);
+            renderResult.subRender.push({template: JSON.stringify({command: depend}), id: result});
+            return null;
         }
 
         let text: string;
         if (Array.isArray(result)) text = result[0].toString();
         else text = result == null ? "" : result.toString();
 
-        if (isHtml) return text;
-        return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        if (!isHtml) text = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");;
+
+        return text;
     }
     
-    private async _render(template: string, mainId: string, renderResult: RenderResult): Promise<string> {
-        if (renderResult == null) renderResult = new RenderResult();
+    public async render(template: string, object: AS.ASObject): Promise<RenderResult> {
+        let renderResult = new RenderResult();
+        if (template.startsWith('{')) {
+            // pseudo-template!
+            let data = JSON.parse(template);
+            let parsed = this._parseCommand(object, data.command, renderResult);
+            renderResult.result.push(parsed);
+            return renderResult;
+        }
 
-        renderResult.usedIds.push(mainId);
-
-        const object = await this.entityStore.get(mainId);
-        let temp = (await this.templateService.getTemplates())[template];
+        let temp = this.templates[template];
         let result = "";
         for (let i = 0; i < temp.length; i++) {
             const item = temp[i];
@@ -143,18 +152,15 @@ export class TemplateRenderer {
                         i = item.offset - 1;
                     break;
                 case "command":
-                    result += await this._parseCommand(object, item.data, renderResult);
+                    let parsed = this._parseCommand(object, item.data, renderResult);
+                    if (parsed == null) {
+                        renderResult.result.push(result);
+                        result = "";
+                    }
                     break;
             }
         }
-        return result;
-    }
-
-    public async render(template: string, mainId: string): Promise<RenderResult>
-    {
-        let renderResult = new RenderResult();
-        renderResult.result = await this._render(template, mainId, renderResult);
-
+        renderResult.result.push(result);
         return renderResult;
     }
 }

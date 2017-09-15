@@ -1,4 +1,5 @@
 export function get(object: ASObject, name: string): any[] {
+    if (object == null) debugger;
     if (name in object) {
         if (Array.isArray(object[name])) return object[name];
         return [object[name]];

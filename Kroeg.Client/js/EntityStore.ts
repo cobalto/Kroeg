@@ -58,15 +58,12 @@ export class EntityStore {
         if (id in this._handlers)
             for (let handler of this._handlers[id])
                 handler(prev, obj);
-        console.log(`Cached ${id} - ${Object.keys(this._cache).length} items cached`);
     }
 
     private async loadDocument(url: string, callback: (err: Error | null, documentObject: jsonld.DocumentObject) => void) {
-        console.log("Loading ...", url);
         try {
             let response = await this.session.authFetch(url);
             let data = await response.json();
-            console.log("Callbacking");
             callback(null, data);
         } catch (e) {
             callback(e, null);
