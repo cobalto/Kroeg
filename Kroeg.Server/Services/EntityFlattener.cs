@@ -84,7 +84,7 @@ namespace Kroeg.Server.Tools
             endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
             endpoints.Replace("proxyUrl", new ASTerm(basePath + "auth/proxy"));
             endpoints.Replace("jwks", new ASTerm(basePath + "auth/jwks?id=" + Uri.EscapeDataString(entity.Id)));
-            endpoints.Replace("id", new ASTerm((string)null));
+            endpoints.Replace("id", new ASTerm(entity.Id + "#endpoints"));
 
             data.Replace("endpoints", new ASTerm(endpoints));
 

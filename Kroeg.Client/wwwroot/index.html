@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="require.js"></script>
+        <script>
+            requirejs.config({
+                bundles: {
+                    'code': ['ActivityGetter', 'AS', 'Main', 'Session', 'TemplateService']
+                },
+                paths: {
+                    "jsonld": "https://cdnjs.cloudflare.com/ajax/libs/jsonld/0.4.12/jsonld"
+                }
+            });
+
+            require(["Main"], function(Main) { window.main = Main });
+        </script>
+    </head>
+    <body>
+    </body>
+</html>

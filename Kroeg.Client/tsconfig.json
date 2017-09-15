@@ -4,6 +4,8 @@
         "module": "amd",
         "noImplicitAny": true,
         "sourceMap": true,
+        "inlineSources": true,
+        "target": "es2015",
         "lib": [
             "es2015",
             "dom",

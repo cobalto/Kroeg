@@ -69,7 +69,8 @@ namespace Kroeg.Server.Middleware
                 }
             }
 
-            if (context.Request.Method == "OPTIONS" && ConverterHelpers.GetBestMatch(_converters[0].MimeTypes, context.Request.Headers["Accept"]) != null)
+            /* && ConverterHelpers.GetBestMatch(_converters[0].MimeTypes, context.Request.Headers["Accept"]) != null */
+            if (context.Request.Method == "OPTIONS")
             {
                 context.Response.StatusCode = 200;
                 context.Response.Headers.Add("Access-Control-Allow-Credentials", "true");

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json.Linq;
 using System.IO;
 using Kroeg.Server.Models;
+using Newtonsoft.Json;
 
 namespace Kroeg.Server.Middleware.Renderers
 {
@@ -65,8 +66,8 @@ namespace Kroeg.Server.Middleware.Renderers
                 response.Headers.Add("Access-Control-Allow-Origin", "*");
 
                 var depth = Math.Min(int.Parse(request.Query["depth"].FirstOrDefault() ?? "3"), 5);
-
                 var unflattened = await _flattener.Unflatten(_entityStore, APEntity.From(toRender), depth);
+
                 await response.WriteAsync(unflattened.Serialize(true).ToString());
             }
         }

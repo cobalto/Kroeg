@@ -8,7 +8,11 @@
 		{{if is Note}}
 			{{render:objects/note}}
 		{{else}}
-			ID: <a href="{{$id}}.json">{{$id}}</a>
+			{{if is Person}}
+				{{render:objects/user}}
+			{{else}}
+				ID: <a href="{{$id}}.json">{{$id}}</a>
+			{{end}}
 		{{end}}
 	{{end}}
 {{end}}

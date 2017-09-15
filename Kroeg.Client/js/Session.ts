@@ -1,3 +1,5 @@
+import { ASObject } from "./AS";
+
 function getHost(url: string) {
     const obj = document.createElement('a');
     // Let the browser do the work
@@ -38,7 +40,7 @@ export class Session {
         return fetch(request);
     }
 
-    public getObject(url: string): Promise<any> {
+    public async getObject(url: string): Promise<ASObject> {
         const requestHost = getHost(url);
         if (requestHost != this._host && this._proxyUrl !== undefined) {
             const parms = new URLSearchParams();
@@ -47,7 +49,9 @@ export class Session {
                 body: parms
             };
 
-            return this.authFetch(this._proxyUrl, requestInit);
+            return await (await this.authFetch(this._proxyUrl, requestInit)).json();
         }
+
+        return await (await this.authFetch(url)).json();
     }
 }

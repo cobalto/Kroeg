@@ -1,4 +1,4 @@
-import { Session } from "./Session";
+import { EntityStore } from "./EntityStore";
 import * as AS from "./AS";
 
 export class TemplateItem {
@@ -26,12 +26,17 @@ export class TemplateService {
     }
 }
 
+export class RenderResult {
+    public result: string;
+    public usedIds: string[] = [];
+}
+
 export class TemplateRenderer {
-    public constructor(private templateService: TemplateService, private session: Session) {
+    public constructor(private templateService: TemplateService, private entityStore: EntityStore) {
 
     }
 
-    private _parseCondition(object: any, text: string): boolean {
+    private _parseCondition(object: AS.ASObject, text: string): boolean {
         const split = text.split(' ');
         if (split.length == 2) {
             if (text == "is Activity") return "actor" in object;
@@ -53,7 +58,7 @@ export class TemplateRenderer {
         return false;
     }
 
-    private async _parseCommand(object: any, command: string): Promise<string>
+    private async _parseCommand(object: AS.ASObject, command: string, renderResult: RenderResult): Promise<string>
     {
         let result: any = null;
         let isHtml = false;
@@ -72,13 +77,13 @@ export class TemplateRenderer {
                 else result = results;
             }
             else if (asf.startsWith("%")) {
-                if (result !== null) continue;
+                if (result === null) continue;
                 let id: string = null;
                 if (Array.isArray(result))
                     id = result[0] as string;
                 else id = result as string;
 
-                const entity = await this.session.getObject(id);
+                const entity = await this.entityStore.get(id);
                 const name = asf.substring(1);
                 let results = [];
                 for (let item of AS.get(entity, name)) {
@@ -89,31 +94,35 @@ export class TemplateRenderer {
                 if (results.length == 0) result = null;
                 else result = results;
             } else if (asf.startsWith("'")) {
-                if (result != null) result = asf.substring(1);
+                if (result === null) result = asf.substring(1);
             } else if (asf == "ishtml") {
                 isHtml = true;
             } else if (asf.startsWith("render:")) {
                 const template = asf.substring(7);
-                if (result == null) return await this.render(template, object.id);
+                if (result == null) return await this._render(template, object.id, renderResult);
                 let id: string = null;
                 if (Array.isArray(result))
                     id = result[0] as string;
                 else id = result as string;
 
-                return await this.render(template, id);
+                return await this._render(template, id, renderResult);
             }
         }
 
         let text: string;
-        if (Array.isArray(result)) text = result[0];
-        else text = result.toString();
+        if (Array.isArray(result)) text = result[0].toString();
+        else text = result == null ? "" : result.toString();
 
         if (isHtml) return text;
         return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
     
-    public async render(template: string, mainId: string): Promise<string> {
-        const object = this.session.getObject(mainId);
+    private async _render(template: string, mainId: string, renderResult: RenderResult): Promise<string> {
+        if (renderResult == null) renderResult = new RenderResult();
+
+        renderResult.usedIds.push(mainId);
+
+        const object = await this.entityStore.get(mainId);
         let temp = (await this.templateService.getTemplates())[template];
         let result = "";
         for (let i = 0; i < temp.length; i++) {
@@ -124,7 +133,7 @@ export class TemplateRenderer {
                     break;
                 case "if":
                 case "while":
-                    if (!this._parseCondition(object, item.data.split(' ', 2)[1])) i = item.offset - 1;
+                    if (!this._parseCondition(object, item.data.substring(item.data.indexOf(' ') + 1))) i = item.offset - 1;
                     break;
                 case "jump":
                     i = item.offset - 1;
@@ -134,10 +143,18 @@ export class TemplateRenderer {
                         i = item.offset - 1;
                     break;
                 case "command":
-                    result += await this._parseCommand(object, item.data);
+                    result += await this._parseCommand(object, item.data, renderResult);
                     break;
             }
         }
         return result;
+    }
+
+    public async render(template: string, mainId: string): Promise<RenderResult>
+    {
+        let renderResult = new RenderResult();
+        renderResult.result = await this._render(template, mainId, renderResult);
+
+        return renderResult;
     }
 }

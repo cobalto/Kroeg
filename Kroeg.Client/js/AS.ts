@@ -1,4 +1,4 @@
-export function get(object: any, name: string): any[] {
+export function get(object: ASObject, name: string): any[] {
     if (name in object) {
         if (Array.isArray(object[name])) return object[name];
         return [object[name]];
@@ -7,17 +7,17 @@ export function get(object: any, name: string): any[] {
     return [];
 }
 
-export function contains(object: any, name: string, value: any): boolean {
+export function contains(object: ASObject, name: string, value: any): boolean {
     return get(object, name).indexOf(value) != -1;
 }
 
-export function containsAny(object: any, name: string, values: any[]): boolean {
+export function containsAny(object: ASObject, name: string, values: any[]): boolean {
     const data = get(object, name);
     for(let value of values) if (data.indexOf(values) != -1) return true;
     return false;
 }
 
-export function set(object: any, name: string, value: any) {
+export function set(object: ASObject, name: string, value: any) {
     if (name in object) {
         if (Array.isArray(object[name])) object[name].push(value);
         object[name] = [object[name], value];
@@ -26,6 +26,11 @@ export function set(object: any, name: string, value: any) {
     object[name] = value;
 }
 
-export function clear(object: any, name: string) {
+export function clear(object: ASObject, name: string) {
     if (name in object) delete object[name];
+}
+
+export class ASObject {
+    public id: string;
+    [name: string]: any;
 }
