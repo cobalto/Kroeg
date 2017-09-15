@@ -25,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Kroeg.ActivityStreams\Kroeg.ActivityStreams.csproj" />
+    <ProjectReference Include="..\Kroeg.JsonLD\Kroeg.JsonLD.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="wwwroot\images\" />

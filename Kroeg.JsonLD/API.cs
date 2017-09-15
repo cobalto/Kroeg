@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json;
 
+
 namespace Kroeg.JsonLD
 {
     public class API
@@ -905,7 +906,7 @@ namespace Kroeg.JsonLD
                 if (((JArray)expandedValue).Count == 0)
                 {
                     var itemActiveProperty = _compactIri(activeContext, inverseContext, expandedProperty, expandedValue, true, insideReverse);
-                    if (result[itemActiveProperty] != null) result[itemActiveProperty] = new JArray();
+                    if (result[itemActiveProperty] == null) result[itemActiveProperty] = new JArray();
                     else if (result[itemActiveProperty].Type != JTokenType.Array) result[itemActiveProperty] = new JArray(result[itemActiveProperty]);
                 }
 
@@ -969,6 +970,210 @@ namespace Kroeg.JsonLD
             return result;
         }
 
+        private Dictionary<string, string> _identifierMap = new Dictionary<string, string>();
+        private int _counter = 0;
+
+        private string _generateBlankNode(string identifier = null)
+        {
+            if (identifier != null && _identifierMap.ContainsKey(identifier)) return _identifierMap[identifier];
+            var node = $"_:b{_counter}";
+            _counter++;
+            if (identifier != null) _identifierMap[identifier] = node;
+            return node;
+        }
+
+        private void _buildNodeMap(JToken element, JObject nodeMap, int depth, string activeGraph = "@default", JToken activeSubject = null, string activeProperty = null, JObject list = null)
+        {
+            if (element.Type == JTokenType.Array) {
+                foreach (var item in (JArray) element)
+                    _buildNodeMap(item, nodeMap, depth + 1, activeGraph, activeSubject, activeProperty, list);
+
+                return;
+            }
+
+            var objElement = (JObject) element;
+            var graph = nodeMap[activeGraph];
+            JObject node = null;
+            if (activeSubject != null) node = (JObject) graph[activeSubject.Value<string>()];
+
+
+            if (objElement["@value"] != null)
+            {
+                if (objElement["@type"] != null)
+                {
+                    var typeVal = objElement["@type"].Value<string>();
+                    if (typeVal.StartsWith("_:")) objElement["@type"] = _generateBlankNode(typeVal);
+                }
+
+                if (list == null)
+                {
+                    if (node[activeProperty] == null) node[activeProperty] = new JArray();
+                    ((JArray)node[activeProperty]).Add(element);
+                }
+                else
+                    ((JArray)list["@list"]).Add(element);
+                
+                return;
+            }
+
+            if (objElement["@type"] != null)
+            {
+                if (objElement["@type"].Type == JTokenType.String)
+                    Console.WriteLine("BAD PUCK.");
+                    
+                var arr = (JArray) objElement["@type"];
+                for (int i = 0; i < arr.Count; i++)
+                {
+                    var stringVal = arr[i].Value<string>();
+                    if (stringVal.StartsWith("_:"))
+                        arr[i] = _generateBlankNode(stringVal);
+                }
+            }
+
+            if (objElement["@list"] != null)
+            {
+                var result = new JObject();
+                var listArr = new JArray();
+                result["@list"] = listArr;
+
+                _buildNodeMap(objElement["@list"], nodeMap, depth + 1, activeGraph, activeSubject, activeProperty, result);
+                ((JArray)node[activeProperty]).Add(result);
+            }
+            else
+            {
+                string id = null;
+                if (objElement["@id"] != null)
+                {
+                    id = objElement["@id"].Value<string>();
+                    if (id.StartsWith("_:"))
+                        id = _generateBlankNode(id);
+                    objElement.Remove("@id");
+                }
+                else id = _generateBlankNode();
+                if (graph[id] == null)
+                {
+                    graph[id] = new JObject();
+                    ((JObject)graph[id])["@id"] = id;
+                }
+
+                if (activeSubject?.Type == JTokenType.Object)
+                {
+                    if (node[activeProperty] == null) node[activeProperty] = new JArray();
+                    ((JArray)node[activeProperty]).Add(activeSubject);
+                }
+                else if (activeProperty != null)
+                {
+                    var reference = new JObject();
+                    reference["@id"] = id;
+                    if (list == null)
+                    {
+                        if (node[activeProperty] == null)
+                            node[activeProperty] = new JArray();
+                        ((JArray)node[activeProperty]).Add(reference);
+                    }
+                    else
+                    {
+                        list.Add(reference);
+                    }
+                }
+
+                node = (JObject) graph[id];
+
+                if (objElement["@type"] != null)
+                {
+                    if (node["@type"] == null) node["@type"] = new JArray();
+                    var arr = (JArray) node["@type"];
+                    foreach (var item in (JArray) objElement["@type"])
+                        arr.Add(item);
+
+                    objElement.Remove("@type");
+                }
+
+                if (objElement["@index"] != null)
+                {
+                    if (node["@index"] != null && node["@index"] != objElement["@index"])
+                        throw new JsonLDException("conflicting indexes");
+                    node["@index"] = objElement["@index"].Value<string>();
+                }
+
+                if (objElement["@reverse"] != null)
+                {
+                    var referencedNode = new JObject();
+                    referencedNode["@id"] = id;
+                    var reverseMap = (JObject) objElement["@reverse"];
+                    foreach (var kv in reverseMap)
+                        foreach (var value in (JArray) kv.Value)
+                            _buildNodeMap(value, nodeMap, depth + 1, activeGraph, referencedNode, kv.Key);
+                
+                    objElement.Remove("@reverse");
+                }
+
+                if (objElement["@graph"] != null)
+                {
+                    _buildNodeMap(objElement["@graph"], nodeMap, depth + 1, id);
+                    objElement.Remove("@graph");
+                }
+
+                foreach (var kv in objElement)
+                {
+                    var property = kv.Key;
+                    var value = kv.Value;
+
+                    if (property.StartsWith("_:")) property = _generateBlankNode(property);
+                    if (node[property] == null) node[property] = new JArray();
+                    _buildNodeMap(value, nodeMap, depth + 1, activeGraph, id, property);
+                }
+            }
+        }
+
+        public JToken Flatten(JToken element, Context context)
+        {
+            element = element.DeepClone();
+            var nodeMap = new JObject();
+            nodeMap["@default"] = new JObject();
+
+            _buildNodeMap(element, nodeMap, 0);
+
+            var defaultGraph = (JObject) nodeMap["@default"];
+            foreach (var kv in nodeMap)
+            {
+                if (kv.Key == "@default") continue;
+
+                if (defaultGraph[kv.Key] == null)
+                    defaultGraph[kv.Key] = new JObject { ["@id"] = kv.Key };
+                
+                var entry = defaultGraph[kv.Key];
+                var graph = (JObject) kv.Value;
+
+                var grarr = new JArray();
+                entry["@graph"] = grarr;
+
+                foreach (var gkv in ((IEnumerable<KeyValuePair<string, JToken>>)graph).OrderBy(a => a.Key))
+                {
+                    var id = gkv.Key;
+                    var node = (JObject) gkv.Value;
+                    if (node.Properties().Count() == 1 && node["@id"] != null)
+                        continue;
+                    
+                    grarr.Add(node);
+                }
+            }
+
+            var flattened = new JArray();
+            foreach (var kv in defaultGraph)
+            {
+                var id = kv.Key;
+                var node = (JObject) kv.Value;
+
+                if (node.Properties().Count() == 1 && node["@id"] != null) continue;
+                flattened.Add(node);
+            }
+
+            if (context == null) return flattened;
+
+            return CompactExpanded(context, flattened);
+        }
+
         public JToken CompactExpanded(Context context, JToken toCompact)
         {
             var inverseContext = _createInverseContext(context);
@@ -978,6 +1183,119 @@ namespace Kroeg.JsonLD
         public async Task<Context> BuildContext(JToken data)
         {
             return await _processContext(new Context(), data);
+        }
+
+        private Triple _objectToRdf(JObject obj)
+        {
+            var isNode = obj["@value"] == null && obj["@list"] == null && obj["@set"] == null;
+
+            if (isNode && obj["@id"] != null && Uri.IsWellFormedUriString(obj["@id"].Value<string>(), UriKind.Relative))
+                return null;
+            if (isNode) return new Triple { Object = new Triple.TripleObject { LexicalForm = obj["@id"].Value<string>() } };
+
+            var value = obj["@value"];
+            var dataType = obj["@type"]?.Value<string>();
+
+            if (value.Type == JTokenType.Boolean)
+            {
+                value = value.Value<bool>().ToString();
+                dataType = dataType ?? "xsd:boolean";
+            }
+            else if (value.Type == JTokenType.Float && (value.Value<double>() % 1) != 0.0 || dataType == "xsd:double")
+            {
+                value = value.Value<double>().ToString(); // todo: proper formatting
+                dataType = dataType ?? "xsd:double";
+            }
+            else if (value.Type == JTokenType.Integer || dataType == "xsd:integer")
+            {
+                value = value.Value<int>().ToString();
+                dataType = dataType ?? "xsd:integer";
+            }
+
+            dataType = dataType ?? (obj["@language"] != null ? "rdf:langString" : "xsd:string");
+
+            return new Triple { Object = new Triple.TripleObject { LexicalForm = value.Value<string>(), TypeIri = dataType, LanguageTag = obj["@language"]?.Value<string>() } };
+        }
+
+        private string _listToRdf(JArray list, List<Triple> listTriples)
+        {
+            if (list.Count == 0)
+                return "rdf:nil";
+            
+            var bnodes = Enumerable.Range(0, list.Count).Select(a => _generateBlankNode()).ToList();
+            int i = 0;
+            foreach (var items in list.Zip(bnodes, (a, b) => new Tuple<JToken, string>(a, b)))
+            {
+                var subject = items.Item2;
+                var item = (JObject) items.Item1;
+
+                var rdfObject = _objectToRdf(item);
+                if (rdfObject != null) listTriples.Add(new Triple { Subject = subject, Predicate = "rdf:first", Object = rdfObject.Object });
+                var rest = (i < list.Count - 1) ? bnodes[i + 1] : "rdf:nil";
+                listTriples.Add(new Triple { Subject = subject, Predicate = "rdf:rest", Object = new Triple.TripleObject { LexicalForm = rest } });
+            }
+
+            return bnodes[0];
+        }
+
+        public Dictionary<string, List<Triple>> MakeRDF(JToken expanded)
+        {
+            expanded = expanded.DeepClone();
+
+            var nodeMap = new JObject();
+            nodeMap["@default"] = new JObject();
+
+            _buildNodeMap(expanded, nodeMap, 0);
+
+            var dataset = new Dictionary<string, List<Triple>>();
+            foreach (var kv in nodeMap)
+            {
+                var graphName = kv.Key;
+                var graph = (JObject) kv.Value;
+                var triples = new List<Triple>();
+
+                foreach (var kv2 in graph)
+                {
+                    var subject = kv2.Key;
+                    var node = (JObject) kv2.Value;
+                    if (Uri.IsWellFormedUriString(subject, UriKind.Relative)) continue;
+
+                    foreach (var kv3 in node)
+                    {
+                        var property = kv3.Key;
+                        if (property == "@id") continue;
+                        var values = (JArray) kv3.Value;
+
+                        if (property == "@type")
+                            foreach (var type in values)
+                                triples.Add(new Triple { Subject = subject, Predicate = "rdf:type", Object = new Triple.TripleObject { LexicalForm = type.Value<string>() } });
+                        else if (property.StartsWith("@")) continue;
+                        else if (Uri.IsWellFormedUriString(property, UriKind.Relative)) continue;
+                        else
+                        {
+                            foreach (var item in values)
+                            {
+                                if (item.Type == JTokenType.Object && ((JObject)item)["@list"] != null)
+                                {
+                                    var listTriples = new List<Triple>();
+                                    var listHead = _listToRdf((JArray) ((JObject)item)["@list"], listTriples);
+                                    triples.Add(new Triple { Subject = subject, Predicate = property, Object = new Triple.TripleObject { LexicalForm = listHead }});
+                                    triples.AddRange(listTriples);
+                                }
+                                else
+                                {
+                                    var res = _objectToRdf((JObject) item);
+                                    if (res != null) triples.Add(new Triple { Subject = subject, Predicate = property, Object = res.Object });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                dataset[graphName] = triples;
+            }
+
+            return dataset;
         }
 
         public API(ResolveContext resolve)
@@ -992,6 +1310,22 @@ namespace Kroeg.JsonLD
         public Dictionary<string, string> Type { get; } = new Dictionary<string, string>();
     }
 
+    public class Triple {
+        public struct TripleObject {
+            public string LexicalForm { get; set; }
+            public string TypeIri { get; set; }
+            public string LanguageTag { get; set; }
+        }
+
+        public string Subject { get; set; }
+        public string Predicate { get; set; }
+        public TripleObject Object { get; set; }
+
+        public override string ToString()
+        {
+            return $"<{Subject}> <{Predicate}> <{Object.LexicalForm}> {Object.TypeIri} .";
+        }
+    }
 
     internal class InverseContext
     {
