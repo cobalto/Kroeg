@@ -1,0 +1,18 @@
+@keyframes rotating {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+.renderhost_loading {
+    animation: rotating 0.5s linear infinite;
+    display: inline-block;
+    font-size: 20px;
+}
+
+.nopad {
+  padding: 0px;
+}

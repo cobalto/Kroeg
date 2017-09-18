@@ -3,19 +3,27 @@
     <head>
         <title>Kroeg</title>
 
-        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta/css/bootstrap.min.css" integrity="sha384-/Y6pD6FV/Vv2HJnA6t+vslU6fwYXjCFtcEpHbNJ0lyAFsXTsjBbfaDjzALeQsN6M" crossorigin="anonymous">
+        <link rel="stylesheet" href="/css/style.css" type="text/css">
     </head>
     <body>
-        <div class="container">
-            {{if is Collection}}
-                {{$id render:collection}}
-            {{else}}
-                {{if is CollectionPage}}
-                    {{$id render:collection_page}}
-                {{else}}
-                    {{$id render:object}}
-                {{end}}
-            {{end}}
-        </div>
+        {{render:body}}
+
+        <script>
+            window.preload = {{preload}};
+        </script>
+        <script src="/js/require.js"></script>
+        <script>
+            requirejs.config({
+                bundles: {
+                    '/js/code.js': ['Main']
+                },
+                paths: {
+                    "jsonld": "https://cdnjs.cloudflare.com/ajax/libs/jsonld/0.4.12/jsonld"
+                }
+            });
+
+            require(["Main"], function(Main) { window.main = Main });
+        </script>
     </body>
 </html>

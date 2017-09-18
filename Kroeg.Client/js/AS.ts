@@ -14,7 +14,7 @@ export function contains(object: ASObject, name: string, value: any): boolean {
 
 export function containsAny(object: ASObject, name: string, values: any[]): boolean {
     const data = get(object, name);
-    for(let value of values) if (data.indexOf(values) != -1) return true;
+    for(let value of values) if (data.indexOf(value) != -1) return true;
     return false;
 }
 

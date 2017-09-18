@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <title>Kroeg</title>
+
         <script src="require.js"></script>
         <script>
             requirejs.config({
                 bundles: {
-                    'code': ['ActivityGetter', 'AS', 'Main', 'Session', 'TemplateService']
+                    '/js/code': ['Main']
                 },
                 paths: {
                     "jsonld": "https://cdnjs.cloudflare.com/ajax/libs/jsonld/0.4.12/jsonld"
@@ -14,7 +16,12 @@
 
             require(["Main"], function(Main) { window.main = Main });
         </script>
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+        <link rel="stylesheet" href="/css/style.css" type="text/css" />
     </head>
     <body>
+        <div class="container">
+        </div>
     </body>
 </html>

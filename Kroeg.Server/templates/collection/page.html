@@ -1,0 +1,7 @@
+{{wrap div class="list-group"}}
+{{$orderedItems $items load}}
+{{while next}}
+    <div class="list-group-item">
+        {{item render:object}}
+    </div>
+{{end}}

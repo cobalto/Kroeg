@@ -11,6 +11,6 @@
             "dom",
             "es6"
         ],
-        "outFile": "wwwroot/code.js"
+        "outFile": "../Kroeg.Server/wwwroot/js/code.js"
     }
 }

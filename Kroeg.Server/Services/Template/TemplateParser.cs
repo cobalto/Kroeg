@@ -37,9 +37,17 @@ namespace Kroeg.Server.Services.Template
 
                 var command = template.Substring(start + 2, end - start - 2);
                 var entry = new TemplateItem { Type = "command", Data = command };
+                // if: { type: if, data: command, offset: location after the else }
+                // else: { type: jump, data: null, offset: location of the end }
+                // end: { type: end, data: null, offset: location of the else/if?? }
+                // {{if }} -> push location on ifstack
+                // {{else }} -> pop, set if offset to here, add jump to ifstack
+                // {{end }} -> pop, set jump offset to here.
+                // {{elif }} -> pop, add jump to ifstack, set if offset to here
                 if (command.StartsWith("if") || command.StartsWith("while"))
                 {
                     entry.Type = command.Split(' ')[0];
+                    ifStack.Push(-1);
                     ifStack.Push(result.Count);
                 }
                 else if (command.StartsWith("else"))
@@ -57,12 +65,42 @@ namespace Kroeg.Server.Services.Template
                 {
                     entry.Type = "end";
 
-                    var lastPos = ifStack.Pop();
-                    var res = result[lastPos];
-                    res.Offset = result.Count;
-                    result[lastPos] = res;
+                    while (ifStack.Peek() != -1)
+                    {
+                        var lastPos = ifStack.Pop();
+                        var res = result[lastPos];
+                        
+                        if (res.Type == "while")
+                        {
+                            entry.Type = "jump";
+                            entry.Offset = lastPos;
+                        }
+                        
+                        res.Offset = result.Count + 1;
+                        result[lastPos] = res;
+                    }
 
-                    entry.Offset = lastPos;
+                    ifStack.Pop();
+                }
+                else if (command.StartsWith("wrap"))
+                {
+                    entry.Type = "wrap";
+                    entry.Data = entry.Data.Substring(5);
+                }
+                else if (command.StartsWith("elif"))
+                {
+                    var jump = new TemplateItem { Type = "jump" };
+
+                    var lastPos = ifStack.Pop();
+
+                    var res = result[lastPos];
+                    res.Offset = result.Count + 1;
+                    result[lastPos] = res;
+                    ifStack.Push(result.Count);
+                    result.Add(jump);
+                    
+                    entry.Type = "if";
+                    ifStack.Push(result.Count);
                 }
 
                 result.Add(entry);

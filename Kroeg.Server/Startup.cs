@@ -128,12 +128,18 @@ namespace Kroeg.Server
             services.AddTransient<TemplateService>();
             services.AddTransient<SignatureVerifier>();
 
-            services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-                .AddCookie((options) => {
-                    options.LoginPath = "/auth/login";
-                })
+            services.AddAuthentication(o => {
+                o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+//                .AddCookie((options) => {
+//                    options.LoginPath = "/auth/login";
+//                })
                 .AddJwtBearer((options) => {
                     options.TokenValidationParameters = tokenSettings.ValidationParameters;
+
+                    options.Audience =Configuration.GetSection("Kroeg")["BaseUri"];
+                    options.ClaimsIssuer = Configuration.GetSection("Kroeg")["BaseUri"];
                 });
         }
 
@@ -143,10 +149,9 @@ namespace Kroeg.Server
             loggerFactory.AddConsole(Configuration.GetSection("Logging"));
             loggerFactory.AddDebug();
 
-            app.UseWebSockets();
-
-            app.UseStaticFiles();
             app.UseAuthentication();
+            app.UseWebSockets();
+            app.UseStaticFiles();
 
             app.UseDeveloperExceptionPage();
             app.UseMiddleware<WebSubMiddleware>();

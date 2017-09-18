@@ -1,0 +1,10 @@
+{{wrap div class="container"}}
+{{if is Collection}}
+    {{render:collection}}
+{{elif is CollectionPage}}
+    {{render:collection/page}}
+{{else}}
+    {{render:object}}
+{{end}}
+
+<small>Kroeg pre-alpha - This page has been rendered on the {{if client}}client. {{client.stats}} {{elif server}}server{{end}}</small>

@@ -1,13 +1,4 @@
-﻿<div class="row" style="padding-left: 58px; position: relative">
-	<div class="col-md-12">
-		<a href="{{$attributedTo}}">
-			<img src="{{$attributedTo %icon '//via.placeholder.com/48x48}}" width="48" height="48" style="margin-left: -58px; border-radius: 100%; position: absolute;" />
-			{{$attributedTo %name}}
-			<small>{{$attributedTo}}</small>
-		</a>
-		{{if has published}} at {{$published}}{{else}}(unknown time){{end}}
-	</div>
-	<div class="col-md-12">
-		{{$content}}
-	</div>
+﻿{{wrap div class="row" style="position: relative"}}
+<div class="col-md-12">
+	{{$content isHtml}}
 </div>

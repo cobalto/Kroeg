@@ -35,7 +35,7 @@ export class Session {
 
     public authFetch(input: string | Request, init?: RequestInit): Promise<Response> {
         let request = new Request(input, init);
-        request.headers.set("Authorization", this._token);
+        request.headers.set("Authorization", "Bearer " + this._token);
         request.headers.set("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/activity+json");
         return fetch(request);
     }
