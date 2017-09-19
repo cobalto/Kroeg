@@ -3,11 +3,45 @@ import { TemplateService, TemplateRenderer } from "./TemplateService";
 import { EntityStore } from "./EntityStore";
 import { RenderHost } from "./RenderHost";
 
-export async function setup() {
-    let session = new Session();
-    await session.set("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMWU0OTYzMi1iYWRhLTQyMWYtYjY3Ny1iMmI1ZTU1ZGE3MTAiLCJhY3RvciI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTAwMC91c2Vycy9wdWNraXBlZGlhIiwibmJmIjoxNTA1NDAzNDA2LCJleHAiOjE1MDc5OTU0MDYsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6NTAwMC8iLCJhdWQiOiJodHRwOi8vbG9jYWxob3N0OjUwMDAvIn0.253Y2hyR9mMoeNETLvDhNmtoUaBFZ6lVJGgrleHPWzQ", "http://localhost:5000/users/puckipedia");
+if (window.location.hash.length > 0) {
+    let split = window.location.hash.substring(1).split('&');
+    let kvp: {[a: string]: string} = {};
+    for (let item of split) {
+        let splitItem = item.split('=');
+        kvp[splitItem[0]] = decodeURIComponent(splitItem[1]);
+    }
+    //[oauth2]&response_type=token&redirect_uri=http://localhost:5000/asdf/&state=asdf
+    if ("access_token" in kvp && "state" in kvp && "expires_in" in kvp) {
+        window.localStorage.setItem("id", kvp.state);
+        window.localStorage.setItem("access_token", kvp.access_token);
+        window.localStorage.setItem("expires", (+(new Date) + parseInt(kvp.expires_in)).toString());
+    }
+    window.history.replaceState({}, document.title, window.location.toString().replace(window.location.hash, ""));
+}
 
-    let entityStore = new EntityStore(session);
+let session: Session = null;
+let entityStore: EntityStore;
+
+async function login() {
+    let id = prompt("Log in as?", window.location.toString());
+    let data = await entityStore.get(id, false);
+    let endpoints = await entityStore.get(data["endpoints"]);
+    let oauthEndpoint = endpoints["oauthAuthorizationEndpoint"] as string;
+    if (oauthEndpoint.indexOf("?") == -1) oauthEndpoint += "?"; else oauthEndpoint += "&";
+    oauthEndpoint += `state=${encodeURIComponent(id)}&response_type=token&redirect_uri=${window.location.toString()}`;
+    window.location.assign(oauthEndpoint);
+}
+
+(window as any).login = login;
+
+export async function setup() {
+    session = new Session();
+    if (window.localStorage.getItem("access_token") == null)
+        await session.set(null, null);
+    else
+        await session.set(window.localStorage["access_token"], window.localStorage["id"]);
+
+    entityStore = new EntityStore(session);
     let renderer = new TemplateRenderer(new TemplateService(), entityStore);
     await renderer.prepare();
     let container = document.getElementsByClassName("container")[0] as HTMLDivElement;

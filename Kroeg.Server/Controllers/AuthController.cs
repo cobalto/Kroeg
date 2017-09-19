@@ -26,6 +26,7 @@ using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Linq;
 using Kroeg.Server.BackgroundTasks;
 using System.IO;
+using System.Diagnostics;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -215,7 +216,7 @@ namespace Kroeg.Server.Controllers
             return StatusCode(202);
         }
 
-        [HttpGet("oauth")]
+        [Authorize("pass"), HttpGet("oauth")]
         public async Task<IActionResult> DoOAuthToken(string id, string response_type, string redirect_uri, string state)
         {
             if (response_type != "token" && response_type != "code") return RedirectPermanent(_appendToUri(redirect_uri, "error=unsupported_response_type"));
@@ -238,7 +239,7 @@ namespace Kroeg.Server.Controllers
             return View("ChooseActorOAuth", new OAuthActorModel { Actor = actor, ResponseType = response_type, RedirectUri = redirect_uri, State = state, Expiry = (int) _tokenSettings.ExpiryTime.TotalSeconds});
         }
 
-        [HttpPost("oauth"), ValidateAntiForgeryToken]
+        [Authorize("pass"), HttpPost("oauth"), ValidateAntiForgeryToken]
         public async Task<IActionResult> DoChooseActorOAuth(OAuthActorModel model)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

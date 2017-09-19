@@ -23,6 +23,7 @@ export class Session {
     public async set(token: string, user: string): Promise<void> {
         this._token = token;
         this._user = user;
+        if (token == null) return;
         this._host = getHost(this._user);
 
         let userData = await (await this.authFetch(user)).json();
@@ -35,7 +36,8 @@ export class Session {
 
     public authFetch(input: string | Request, init?: RequestInit): Promise<Response> {
         let request = new Request(input, init);
-        request.headers.set("Authorization", "Bearer " + this._token);
+        if (this._token != null)
+            request.headers.set("Authorization", "Bearer " + this._token);
         request.headers.set("Accept", "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\", application/activity+json");
         return fetch(request);
     }

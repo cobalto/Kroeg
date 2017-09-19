@@ -74,7 +74,7 @@ namespace Kroeg.Server.Tools
             var data = entity.Data;
             var idu = new Uri(entity.Id);
 
-            var basePath = $"{idu.Scheme}://{idu.Host}{_configuration.BasePath}";
+            var basePath = $"{idu.Scheme}://{idu.Host}{(idu.IsDefaultPort?"":$":{idu.Port}")}{_configuration.BasePath}";
 
             var endpoints = new ASObject();
             endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth?id=" + Uri.EscapeDataString(entity.Id)));
