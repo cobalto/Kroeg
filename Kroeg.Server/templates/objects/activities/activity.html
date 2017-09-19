@@ -1,0 +1,10 @@
+{{wrap div class="col-md-12 nopad"}}
+
+{{if is Create}}
+	{{render:objects/activities/create}}
+{{elif is Announce}}
+	{{render:objects/activities/announce}}
+{{elif is Activity}}
+	Activity:
+	{{$object render:object}}
+{{end}}

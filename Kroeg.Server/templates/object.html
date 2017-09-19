@@ -1,16 +1,17 @@
 ﻿{{wrap div class="col-md-12 nopad"}}
 
-{{if is Create}}
-	{{render:objects/activities/create}}
-{{elif is Announce}}
-	{{render:objects/activities/announce}}
-{{elif is Activity}}
-	Activity:
-	{{$object render:object}}
-{{elif is Note}}
-	{{render:objects/note}}
+{{if is Activity}}
+	<div class="list-group">
+		<div class="list-group-item">
+			{{render:objects/activities/activity}}
+		</div>
+	</div>
 {{elif is Person}}
 	{{render:objects/user}}
 {{else}}
-	ID: <a href="{{$id}}.json">{{$id}}</a>
+	<div class="list-group">
+		<div class="list-group-item">
+			{{render:objects/header/object}}
+		</div>
+	</div>
 {{end}}

@@ -1,0 +1,9 @@
+{{wrap div class="col-md-12 nopad"}}
+
+{{if is Note}}
+	{{render:objects/header/note}}
+{{elif is Person}}
+	{{render:objects/header/user}}
+{{else}}
+	ID: <a href="{{$id}}.json">{{$id}}</a>
+{{end}}
