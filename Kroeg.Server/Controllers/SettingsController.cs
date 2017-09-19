@@ -25,12 +25,14 @@ using Newtonsoft.Json.Linq;
 using Kroeg.Server.Middleware.Handlers.ClientToServer;
 using Kroeg.Server.Middleware.Handlers.Shared;
 using Kroeg.Server.Services.Template;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace Kroeg.Server.Controllers
 {
-    [Route("settings")]
+    [Route("settings"), Authorize("pass")]
     public class SettingsController : Controller
     {
         public class BaseModel
@@ -88,7 +90,7 @@ namespace Kroeg.Server.Controllers
             _templateService = templateService;
         }
 
-        [HttpGet("templates")]
+        [AllowAnonymous, HttpGet("templates")]
         public IActionResult Templates()
         {
             Response.Headers.Add("Access-Control-Allow-Origin", "*");
@@ -118,7 +120,7 @@ namespace Kroeg.Server.Controllers
             return View("NewActor", new NewActorModel { Menu = await _getUserInfo() });
         }
 
-        [HttpGet("auth")]
+        [AllowAnonymous, HttpGet("auth")]
         public async Task<IActionResult> RedeemAuth(string token)
         {
             var tokenHandler = new JwtSecurityTokenHandler();

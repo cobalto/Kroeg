@@ -55,6 +55,7 @@ namespace Kroeg.Server
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("admin", policy => policy.RequireClaim("admin"));
+                options.AddPolicy("pass", policy => policy.AddAuthenticationSchemes(IdentityConstants.ApplicationScheme).RequireAuthenticatedUser());
             });
 
             services.Configure<IdentityOptions>(options =>
@@ -130,17 +131,19 @@ namespace Kroeg.Server
 
             services.AddAuthentication(o => {
                 o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                o.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
+                o.DefaultSignInScheme = IdentityConstants.ApplicationScheme;
             })
-//                .AddCookie((options) => {
-//                    options.LoginPath = "/auth/login";
-//                })
                 .AddJwtBearer((options) => {
                     options.TokenValidationParameters = tokenSettings.ValidationParameters;
 
                     options.Audience =Configuration.GetSection("Kroeg")["BaseUri"];
                     options.ClaimsIssuer = Configuration.GetSection("Kroeg")["BaseUri"];
                 });
+            
+            services.ConfigureApplicationCookie((options) => {
+                options.Cookie.Name = "Kroeg.Auth";
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
