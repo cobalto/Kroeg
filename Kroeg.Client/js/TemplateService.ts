@@ -17,7 +17,7 @@ export class TemplateService {
     }
 
     private async _getTemplates(): Promise<{[item: string]: Template}> {
-        const result = await fetch("http://localhost:5000/settings/templates");
+        const result = await fetch("/settings/templates");
         return await result.json();
     }
 
