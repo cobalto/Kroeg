@@ -65,7 +65,7 @@ namespace Kroeg.Server.Tools
 
         private static readonly HashSet<string> MayNotFlatten = new HashSet<string>
         {
-            "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience", "endpoints"
+            "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience", "endpoints", "partOf"
         };
 
         private static readonly HashSet<string> UnflattenIfOwner = new HashSet<string>
