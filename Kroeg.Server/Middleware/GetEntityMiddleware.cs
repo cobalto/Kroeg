@@ -495,7 +495,7 @@ namespace Kroeg.Server.Middleware
                     page["type"].Add(new ASTerm("OrderedCollectionPage"));
                     page["summary"].Add(new ASTerm("A collection"));
                     page["id"].Add(new ASTerm(entity.Id + "?from_id=" + (hasItems ? fromId : 0)));
-                    page["partOf"].Add(new ASTerm(collection));
+                    page["partOf"].Add(new ASTerm(entity.Id));
                     if (collection["attributedTo"].Any())
                         page["attributedTo"].Add(collection["attributedTo"].First());
                     if (items.Count > 0)
