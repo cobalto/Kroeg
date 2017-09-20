@@ -131,7 +131,10 @@ namespace Kroeg.Server.Services.Template
                     if (_inbetween == null) return await ParseTemplate(template, entityStore, entity, regs);
                     string id;
                     if (_inbetween.Type == JTokenType.Array)
-                        id = _inbetween[0].ToObject<string>();
+                        _inbetween = _inbetween[0];
+
+                    if (_inbetween.Type == JTokenType.Object)
+                        id = _inbetween["id"].ToObject<string>();
                     else
                         id = _inbetween.ToObject<string>();
                     var newEntity = await entityStore.GetEntity(id, true);

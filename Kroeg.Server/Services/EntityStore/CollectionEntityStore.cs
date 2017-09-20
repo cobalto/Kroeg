@@ -25,7 +25,7 @@ namespace Kroeg.Server.Services.EntityStore
             page["type"].Add(new ASTerm("OrderedCollectionPage"));
             page["summary"].Add(new ASTerm("A collection"));
             page["id"].Add(new ASTerm(entity.Id + "?from_id=" + (hasItems ? from_id : 0)));
-            page["partOf"].Add(new ASTerm(collection));
+            page["partOf"].Add(new ASTerm(entity.Id));
             if (collection["attributedTo"].Any())
                 page["attributedTo"].Add(collection["attributedTo"].First());
             if (items.Count > 10)
