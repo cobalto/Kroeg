@@ -17,7 +17,7 @@ namespace Kroeg.Server.Services.EntityStore
 {
     public class RetrievingEntityStore : IEntityStore
     {
-        public IEntityStore Next { get; }
+        public IEntityStore Bypass { get; }
 
         private readonly EntityFlattener _entityFlattener;
         private readonly IServiceProvider _serviceProvider;
@@ -25,7 +25,7 @@ namespace Kroeg.Server.Services.EntityStore
 
         public RetrievingEntityStore(IEntityStore next, EntityFlattener entityFlattener, IServiceProvider serviceProvider, IHttpContextAccessor contextAccessor)
         {
-            Next = next;
+            Bypass = next;
             _entityFlattener = entityFlattener;
             _serviceProvider = serviceProvider;
             _context = contextAccessor?.HttpContext;
@@ -44,7 +44,7 @@ namespace Kroeg.Server.Services.EntityStore
             }
 
             APEntity entity = null;
-            if (Next != null) entity = await Next.GetEntity(id, doRemote);
+            if (Bypass != null) entity = await Bypass.GetEntity(id, doRemote);
 
             if (entity?.Type == "_:LazyLoad" && !doRemote) return null;
             if ((entity != null && entity.Type != "_:LazyLoad") || !doRemote) return entity;
@@ -62,7 +62,7 @@ namespace Kroeg.Server.Services.EntityStore
             if (_context != null)
             {
                 var signatureVerifier = _serviceProvider.GetRequiredService<SignatureVerifier>();
-                var user = await Next.GetEntity(_context.User.FindFirstValue(JwtTokenSettings.ActorClaim), false);
+                var user = await Bypass.GetEntity(_context.User.FindFirstValue(JwtTokenSettings.ActorClaim), false);
                 if (user != null)
                 {
                     var jwt = await signatureVerifier.BuildJWS(user, id);
@@ -123,17 +123,17 @@ namespace Kroeg.Server.Services.EntityStore
             }
 
             // forces out the old lazy load, if used
-            await _entityFlattener.FlattenAndStore(Next, data, false);
-            await Next.CommitChanges();
+            await _entityFlattener.FlattenAndStore(Bypass, data, false);
+            await Bypass.CommitChanges();
 
-            return await Next.GetEntity(id, true);
+            return await Bypass.GetEntity(id, true);
         }
 
-        public async Task<APEntity> StoreEntity(APEntity entity) => Next == null ? entity : await Next.StoreEntity(entity);
+        public async Task<APEntity> StoreEntity(APEntity entity) => Bypass == null ? entity : await Bypass.StoreEntity(entity);
 
         public async Task CommitChanges()
         {
-            if (Next != null) await Next.CommitChanges();
+            if (Bypass != null) await Bypass.CommitChanges();
         }
     }
 }

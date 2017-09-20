@@ -1,7 +1,21 @@
-{{wrap div class="list-group"}}
-{{$orderedItems $items load}}
-{{while next}}
-    <div class="list-group-item">
-        {{item render:objects/activities/activity}}
-    </div>
+{{wrap div}}
+{{if has attributedTo}}
+    {{$attributedTo render:objects/sub/user_info}}
 {{end}}
+
+<div class="list-group">
+    {{$orderedItems $items load}}
+    {{while next}}
+        <div class="list-group-item">
+            {{item render:objects/activities/activity}}
+        </div>
+    {{end}}
+    <div class="list-group-item">
+        {{if has prev}}
+            <a class="btn" href="{{$prev}}">&laquo; Previous</a>
+        {{end}}
+        {{if has prev}}
+            <a class="btn" href="{{$next}}">Next &raquo;</a>
+        {{end}}
+    </div>
+</div>

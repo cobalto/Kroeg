@@ -119,12 +119,15 @@ namespace Kroeg.Server
             services.AddTransient<ActivityService>();
             services.AddTransient<AtomEntryParser>();
             services.AddTransient<AtomEntryGenerator>();
+            services.AddTransient<FakeEntityService>();
             services.AddTransient<IEntityStore>((provider) =>
             {
                 var dbservice = provider.GetRequiredService<DatabaseEntityStore>();
                 var flattener = provider.GetRequiredService<EntityFlattener>();
                 var httpAccessor = provider.GetService<IHttpContextAccessor>();
-                return new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor);
+                var fakeEntityService = provider.GetService<FakeEntityService>();
+                var retrieving = new RetrievingEntityStore(dbservice, flattener, provider, httpAccessor);
+                return new FakeEntityStore(fakeEntityService, retrieving);
             });
             services.AddTransient<TemplateService>();
             services.AddTransient<SignatureVerifier>();
@@ -143,6 +146,7 @@ namespace Kroeg.Server
             
             services.ConfigureApplicationCookie((options) => {
                 options.Cookie.Name = "Kroeg.Auth";
+                options.LoginPath = "/auth/login";
             });
         }
 

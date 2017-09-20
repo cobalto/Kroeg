@@ -19,7 +19,7 @@ namespace Kroeg.Server.Services.EntityStore
         private async Task<ASObject> _buildPage(APEntity entity, int from_id)
         {
             var collection = entity.Data;
-            var items = await _collectionTools.GetItems(entity.Id, from_id, 10);
+            var items = await _collectionTools.GetItems(entity.Id, from_id, 11);
             var hasItems = items.Any();
             var page = new ASObject();
             page["type"].Add(new ASTerm("OrderedCollectionPage"));
@@ -28,9 +28,9 @@ namespace Kroeg.Server.Services.EntityStore
             page["partOf"].Add(new ASTerm(collection));
             if (collection["attributedTo"].Any())
                 page["attributedTo"].Add(collection["attributedTo"].First());
-            if (items.Count > 0)
+            if (items.Count > 10)
                 page["next"].Add(new ASTerm(entity.Id + "?from_id=" + (items.Last().CollectionItemId - 1).ToString()));
-            page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
+            page["orderedItems"].AddRange(items.Take(10).Select(a => new ASTerm(a.ElementId)));
             return page;
         }
 
@@ -65,9 +65,11 @@ namespace Kroeg.Server.Services.EntityStore
                 parsedId = split[0];
             }
 
-            var entity = await Bypass.GetEntity(id, doRemote);
-            if (entity == null) entity = await Bypass.GetEntity(parsedId, doRemote);
-            if (entity?.Type.StartsWith("_") != true) return entity;
+            APEntity original;
+            var entity = original = await Bypass.GetEntity(id, false);
+            if (entity == null) entity = await Bypass.GetEntity(parsedId, false);
+            if (entity == null || !entity.IsOwner) return doRemote ? await Bypass.GetEntity(id, true) : original;
+            if (!entity.Type.StartsWith("_") && entity.Type != "OrderedCollection") return doRemote ? await Bypass.GetEntity(id, true) : original;
 
             if (query == null)
             {

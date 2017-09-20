@@ -1,7 +1,2 @@
 {{wrap div}}
-<h1>{{$name $preferredUsername $id}} <small>{{$id}}</small></h1>
-<div>
-    {{$outbox %totalItems 'unknown}} posts made<br />
-    {{$following %totalItems 'unknown}} people followed<br />
-    Interesting enough for {{$followers %totalItems 'unknown}} followers<br/>
-</div>
+{{$outbox render:collection/full}}

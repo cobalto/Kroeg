@@ -19,6 +19,7 @@ export class Session {
 
     private _proxyUrl: string;
     private _uploadMedia: string;
+    private _outbox: string;
 
     public async set(token: string, user: string): Promise<void> {
         this._token = token;
@@ -27,6 +28,7 @@ export class Session {
         this._host = getHost(this._user);
 
         let userData = await (await this.authFetch(user)).json();
+        this._outbox = userData["outbox"];
         if ("endpoints" in userData) {
             const endpoints = userData["endpoints"];
             if ("proxyUrl" in endpoints) this._proxyUrl = endpoints["proxyUrl"];

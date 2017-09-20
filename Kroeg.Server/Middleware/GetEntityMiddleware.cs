@@ -259,12 +259,8 @@ namespace Kroeg.Server.Middleware
 
             internal async Task<ASObject> Get(string url, IQueryCollection arguments, HttpContext context)
             {
-                var store = _mainStore;
-                if (store is RetrievingEntityStore)
-                    store = ((RetrievingEntityStore)store).Next;
-
                 var userId = _user.FindFirstValue(JwtTokenSettings.ActorClaim);
-                var entity = await store.GetEntity(url, true);
+                var entity = await _mainStore.GetEntity(url, false);
                 if (entity == null) return null;
                 if (entity.Type == "_blocks" && !entity.Data["attributedTo"].Any(a => (string)a.Primitive == userId)) throw new UnauthorizedAccessException("Blocks are private!");
                 if (entity.Type == "_blocked") throw new UnauthorizedAccessException("This collection is only used internally for optimization reasons");

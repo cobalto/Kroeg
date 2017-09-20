@@ -141,6 +141,7 @@ namespace Kroeg.Server.Services.Template
                 else if (asf == "load")
                 {
                     regs.Load = new List<string>();
+                    if (_inbetween != null)
                     foreach (var item in (JArray) _inbetween)
                     {
                         regs.Load.Add(item.Value<string>());
@@ -167,6 +168,7 @@ namespace Kroeg.Server.Services.Template
         public async Task<string> ParseTemplate(string template, IEntityStore entityStore, APEntity entity, Registers regs = null)
         {
             if (regs == null) regs = new Registers();
+            if (!Templates.ContainsKey(template)) throw new InvalidOperationException($"Template {template} does not exist!");
             var templ = Templates[template];
             var builder = new StringBuilder();
             var end = "";

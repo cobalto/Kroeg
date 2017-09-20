@@ -123,6 +123,7 @@ export class TemplateRenderer {
                 return null;
             } else if (asf == "load") {
                 reg.load = result as string[];
+                if (reg.load == null) reg.load = [];
                 reg.accumulator = -1;
                 result = null;
             } else if (asf == "item") {

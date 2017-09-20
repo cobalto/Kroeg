@@ -14,11 +14,13 @@ namespace Kroeg.Server.Services.EntityStore
             _context = context;
         }
 
+        public IEntityStore Bypass => null;
 
         public async Task<APEntity> GetEntity(string id, bool doRemote)
         {
             var entity = await _context.Entities.FirstOrDefaultAsync(a => a.Id == id);
             if (entity == null || (!entity.IsOwner && doRemote && entity.Id.StartsWith("http") && (DateTime.Now - entity.Updated).TotalDays > 7)) return null; // mini-cache
+
             return entity;
         }
 

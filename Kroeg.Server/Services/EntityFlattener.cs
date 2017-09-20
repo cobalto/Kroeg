@@ -68,36 +68,17 @@ namespace Kroeg.Server.Tools
             "next", "prev", "first", "last", "bcc", "bto", "cc", "to", "audience", "endpoints"
         };
 
+        private static readonly HashSet<string> UnflattenIfOwner = new HashSet<string>
+        {
+            "endpoints", "publicKey"
+        };
 
-        private async Task<ASObject> _getEndpoints(APEntity entity)
+
+        private ASObject _getEndpoints(APEntity entity)
         {
             var data = entity.Data;
-            var idu = new Uri(entity.Id);
-
-            var basePath = $"{idu.Scheme}://{idu.Host}{(idu.IsDefaultPort?"":$":{idu.Port}")}{_configuration.BasePath}";
-
-            var endpoints = new ASObject();
-            endpoints.Replace("oauthAuthorizationEndpoint", new ASTerm(basePath + "auth/oauth?id=" + Uri.EscapeDataString(entity.Id)));
-            endpoints.Replace("oauthTokenEndpoint", new ASTerm(basePath + "auth/token?"));
-            endpoints.Replace("settingsEndpoint", new ASTerm(basePath + "settings/auth"));
-            endpoints.Replace("uploadMedia", new ASTerm((string)data["outbox"].Single().Primitive));
-            endpoints.Replace("relevantObjects", new ASTerm(basePath + "settings/relevant"));
-            endpoints.Replace("proxyUrl", new ASTerm(basePath + "auth/proxy"));
-            endpoints.Replace("jwks", new ASTerm(basePath + "auth/jwks?id=" + Uri.EscapeDataString(entity.Id)));
-            endpoints.Replace("id", new ASTerm(entity.Id + "#endpoints"));
-
-            data.Replace("endpoints", new ASTerm(endpoints));
-
-            var key = await _context.GetKey(entity.Id);
-            var salm = new MagicKey(key.PrivateKey);
-            var pemData = salm.AsPEM;
-
-            var keyObj = new ASObject();
-            keyObj.Replace("owner", new ASTerm(entity.Id));
-            keyObj.Replace("publicKeyPem", new ASTerm(pemData));
-            keyObj.Replace("id", new ASTerm($"{entity.Id}#key"));
-
-            data.Replace("publicKey", new ASTerm(keyObj));
+            data.Replace("endpoints", new ASTerm(entity.Id + "#endpoints"));
+            data.Replace("publicKey", new ASTerm(entity.Id + "#key"));
             data.Replace("sharedInbox", new ASTerm(_configuration.BaseUri + "/auth/sharedInbox"));
             return data;
         }
@@ -151,7 +132,7 @@ namespace Kroeg.Server.Tools
 
             var @object = entity.Data;
             if (_configuration.IsActor(@object) && entity.IsOwner)
-                @object = await _getEndpoints(entity);
+                @object = _getEndpoints(entity);
 
             var myid = (string)@object["id"].FirstOrDefault()?.Primitive;
             if (myid != null)
@@ -166,7 +147,7 @@ namespace Kroeg.Server.Tools
                 {
                     if (value.SubObject != null) value.SubObject = await _unflatten(store, APEntity.From(value.SubObject), depth - 1, alreadyMapped, remote);
                     if (value.Primitive == null) continue;
-                    if (!IdHolding.Contains(kv.Key) || MayNotFlatten.Contains(kv.Key)) continue;
+                    if ((!IdHolding.Contains(kv.Key) || MayNotFlatten.Contains(kv.Key)) && (!entity.IsOwner || !UnflattenIfOwner.Contains(kv.Key))) continue;
                     var id = (string)value.Primitive;
 
                     if (alreadyMapped.ContainsKey(id)) continue;
