@@ -489,7 +489,7 @@ namespace Kroeg.Server.Middleware
                 if (from_id != null)
                 {
                     var fromId = int.Parse(from_id);
-                    var items = await _collectionTools.GetItems(entity.Id, fromId, 10);
+                    var items = await _collectionTools.GetItems(entity.Id, fromId, 11);
                     var hasItems = items.Any();
                     var page = new ASObject();
                     page["type"].Add(new ASTerm("OrderedCollectionPage"));
@@ -498,9 +498,9 @@ namespace Kroeg.Server.Middleware
                     page["partOf"].Add(new ASTerm(entity.Id));
                     if (collection["attributedTo"].Any())
                         page["attributedTo"].Add(collection["attributedTo"].First());
-                    if (items.Count > 0)
+                    if (items.Count > 10)
                         page["next"].Add(new ASTerm(entity.Id + "?from_id=" + (items.Last().CollectionItemId - 1).ToString()));
-                    page["orderedItems"].AddRange(items.Select(a => new ASTerm(a.ElementId)));
+                    page["orderedItems"].AddRange(items.Take(10).Select(a => new ASTerm(a.ElementId)));
 
                     return page;
                 }
