@@ -29,7 +29,7 @@ namespace Kroeg.Server.Services.EntityStore
             if (collection["attributedTo"].Any())
                 page["attributedTo"].Add(collection["attributedTo"].First());
             if (items.Count > 10)
-                page["next"].Add(new ASTerm(entity.Id + "?from_id=" + (items.Last().CollectionItemId - 1).ToString()));
+                page["next"].Add(new ASTerm(entity.Id + "?from_id=" + (items[9].CollectionItemId - 1).ToString()));
             page["orderedItems"].AddRange(items.Take(10).Select(a => new ASTerm(a.ElementId)));
             return page;
         }
