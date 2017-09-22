@@ -10,12 +10,14 @@
             {{item render:objects/activities/activity}}
         </div>
     {{end}}
-    <div class="list-group-item">
-        {{if $prev}}
-            <a class="btn btn-default" href="{{$prev}}">&laquo; Previous</a>
-        {{end}}
-        {{if $next}}
-            <a class="btn btn-default" href="{{$next}}">Next &raquo;</a>
-        {{end}}
-    </div>
+    {{if $next $prev}}
+        <div class="list-group-item">
+            {{if $prev}}
+                <a class="btn btn-default" href="{{$prev}}">&laquo; Previous</a>
+            {{end}}
+            {{if $next}}
+                <a class="btn btn-default" href="{{$next}}">Next &raquo;</a>
+            {{end}}
+        </div>
+    {{end}}
 </div>
