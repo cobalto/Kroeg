@@ -52,43 +52,25 @@ namespace Kroeg.Server.Services.Template
 
         private async Task<bool> _parseCondition(APEntity entity, IEntityStore entityStore, string text, Registers regs)
         {
-            if (text == "next")
-            {
-                regs.Accumulator++;
-                return regs.Accumulator < regs.Load.Count;
-            }
-            else if (text == "server")
-                return true;
-
-            var data = text.Split(' ');
-            if (data.Length == 2)
-            {
-                if (text == "is Activity") return _entityData.IsActivity(entity.Data);
-                if (text == "is Collection") return entity.Data["type"].Any((a) => (string)a.Primitive == "Collection" || (string)a.Primitive == "OrderedCollection");
-                if (text == "is CollectionPage") return entity.Data["type"].Any((a) => (string)a.Primitive == "CollectionPage" || (string)a.Primitive == "OrderedCollectionPage");
-                else if (data[0] == "is") return entity.Data["type"].Any((a) => (string)a.Primitive == data[1]);
-                else if (data[0] == "has") return entity.Data[data[1]].Any();
-                return false;
-            }
-            if (data.Length == 1) return false;
-
-            var value = data[0];
-            var arr = entity.Data[data[2]];
-            switch (data[1])
-            {
-                case "in":
-                    return arr.Any((a) => (string)a.Primitive == value);
-            }
-
-            return false;
+            return await _parseCommand(entity, entityStore, text, regs) != null;
         }
 
         private async Task<string> _parseCommand(APEntity entity, IEntityStore entityStore, string command, Registers regs)
         {
             JToken _inbetween = null;
             bool isHtml = false;
-            foreach (var asf in command.Split(' '))
+            var splitCommand = command.Split(' ');
+            for (var i = 0; i < splitCommand.Length; i++)
             {
+                var asf = splitCommand[i];
+                var isAnd = false;
+                var previousResult = _inbetween;
+                if (asf.StartsWith("&"))
+                {
+                    isAnd = true;
+                    asf = asf.Substring(1);
+                }
+
                 if (asf.StartsWith("$"))
                 {
                     var name = asf.Substring(1);
@@ -156,9 +138,29 @@ namespace Kroeg.Server.Services.Template
                 {
                     if (_inbetween == null && regs.Accumulator >= 0 && regs.Accumulator < regs.Load.Count) _inbetween = regs.Load[regs.Accumulator];
                 }
+                else if (asf == "next")
+                {
+                    regs.Accumulator++;
+                    _inbetween = (regs.Accumulator < regs.Load.Count) ? regs.Load[regs.Accumulator] : null;
+                }
+                else if (asf == "server")
+                {
+                    _inbetween = "server";
+                }
+                else if (asf == "is")
+                {
+                    var test = splitCommand[++i];
+                    if (test == "Activity") _inbetween = _entityData.IsActivity(entity.Data) ? "Activity" : _inbetween;
+                    else if (test == "Collection") _inbetween = entity.Data["type"].Any((a) => (string)a.Primitive == "Collection" || (string)a.Primitive == "OrderedCollection") ? "Collection" : _inbetween;
+                    else if (test == "CollectionPage") _inbetween = entity.Data["type"].Any((a) => (string)a.Primitive == "CollectionPage" || (string)a.Primitive == "OrderedCollectionPage") ? "CollectionPage" : _inbetween;
+                    else _inbetween = entity.Data["type"].Any((a) => (string)a.Primitive == test) ? test : _inbetween;
+                }
+
+                if (isAnd)
+                    _inbetween = previousResult == null ? null : _inbetween;
             }
 
-            if (_inbetween == null) return "";
+            if (_inbetween == null) return null;
 
             string text;
             if (_inbetween.Type == JTokenType.Array) text = _inbetween[0].ToObject<string>();
@@ -205,7 +207,7 @@ namespace Kroeg.Server.Services.Template
                         if (item.Data.Contains("%")) {
                             builder.Append("<span>");
                         }
-                        builder.Append(await _parseCommand(entity, entityStore, item.Data, regs));
+                        builder.Append(await _parseCommand(entity, entityStore, item.Data, regs) ?? "");
                         if (item.Data.Contains("%")) {
                             builder.Append("</span>");
                         }

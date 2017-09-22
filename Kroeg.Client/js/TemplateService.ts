@@ -56,6 +56,9 @@ export class TemplateRenderer {
     }
 
     private _parseCondition(object: AS.ASObject, text: string, reg: Registers): boolean {
+        let result = this._parseCommand(object, text, null, reg);
+        return result != null;
+/*
         if (text == "next") {
             reg.accumulator++;
             return reg.accumulator < reg.load.length;
@@ -79,7 +82,7 @@ export class TemplateRenderer {
             return arr.indexOf(value) != -1;
         }
 
-        return false;
+        return false; */
     }
 
     private _parseCommand(object: AS.ASObject, command: string, renderResult: RenderResult, reg: Registers): string|{template: string}
@@ -92,9 +95,18 @@ export class TemplateRenderer {
             depend = "$" + command.substring(command.indexOf('%') + 1);
             command = nodepend;
         }
-        for (let asf of command.split(' ')) {
-            if (asf.startsWith("$"))
-            {
+        let splitCommand = command.split(' ')
+        for (let i = 0; i < splitCommand.length; i++) {
+            let asf = splitCommand[i];
+            let prevResult: any = result;
+            let isAnd = false;
+            if (asf.startsWith("&")) {
+                isAnd = true;
+                prevResult = result;
+                asf = asf.substring(1);
+            }
+
+            if (asf.startsWith("$")) {
                 if (result !== null) continue;
                 const name = asf.substring(1);
                 let results = [];
@@ -109,6 +121,17 @@ export class TemplateRenderer {
                 if (result === null) result = asf.substring(1);
             } else if (asf == "ishtml") {
                 isHtml = true;
+            } else if (asf == "client") {
+                result = "client";
+            } else if (asf == "is") {
+                let test = splitCommand[++i];
+                if (test == "Activity") result = "actor" in object ? "Activity" : result;
+                else if (test == "Collection") result = AS.containsAny(object, "type", ["Collection", "OrderedCollection"]) ? test : result;
+                else if (test == "CollectionPage") result = AS.containsAny(object, "type", ["CollectionPage", "OrderedCollectionPage"]) ? test : result;
+                else result = AS.contains(object, "type", test) ? test : result;
+            } else if (asf == "next") {
+                reg.accumulator++;
+                result = (reg.accumulator < reg.load.length) ? (reg.load[reg.accumulator] || "") : null;
             } else if (asf.startsWith("render:")) {
                 const template = asf.substring(7);
                 if (result == null) {
@@ -120,7 +143,7 @@ export class TemplateRenderer {
                 else id = result as string;
 
                 renderResult.subRender.push({id, template});
-                return null;
+                return {template: null};
             } else if (asf == "load") {
                 reg.load = result as string[];
                 if (reg.load == null) reg.load = [];
@@ -131,15 +154,16 @@ export class TemplateRenderer {
             } else if (asf.startsWith("client.")) {
                 if (asf == "client.stats") result = `Preloaded ${Object.keys((window as any).preload).length} items`;
             }
+            if (isAnd) result = prevResult ? result : null;
         }
 
         if (depend != null) {
             if (Array.isArray(result)) result = result[0];
             renderResult.subRender.push({template: JSON.stringify({command: depend, wrap: "span"}), id: result});
-            return null;
+            return {template: null};
         }
 
-        if (result == null) return "";
+        if (result == null) return null;
 
         let text: string;
         if (Array.isArray(result)) text = result.length > 0 ? result[0].toString() : "";
@@ -184,15 +208,18 @@ export class TemplateRenderer {
                     let parsed = this._parseCommand(object, item.data, renderResult, reg);
                     if (parsed != null && typeof parsed == "object") {
                         let template = (parsed as {template: string}).template;
-                        let offset = renderResult.result.length;
-                        result += `<${this.templates[template][0].data}>`;
-                        this.render(template, object, renderResult);
-                        renderResult.result[offset] = result + renderResult.result[offset];
-                        result = renderResult.result[renderResult.result.length - 1] + `</${this.templates[template][0].data.split(' ')[0]}>`;
-                        renderResult.result.splice(renderResult.result.length - 1);
+                        if (template == null) {
+                            renderResult.result.push(result);
+                            result = "";
+                        } else {
+                            let offset = renderResult.result.length;
+                            result += `<${this.templates[template][0].data}>`;
+                            this.render(template, object, renderResult);
+                            renderResult.result[offset] = result + renderResult.result[offset];
+                            result = renderResult.result[renderResult.result.length - 1] + `</${this.templates[template][0].data.split(' ')[0]}>`;
+                            renderResult.result.splice(renderResult.result.length - 1);
+                        }
                     } else if (parsed == null) {
-                        renderResult.result.push(result);
-                        result = "";
                     } else {
                         result += parsed;
                     }

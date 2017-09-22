@@ -1,5 +1,5 @@
 {{wrap div}}
-{{if has attributedTo}}
+{{if $attributedTo}}
     {{$attributedTo render:objects/sub/user_info}}
 {{end}}
 
@@ -11,10 +11,10 @@
         </div>
     {{end}}
     <div class="list-group-item">
-        {{if has prev}}
+        {{if $prev}}
             <a class="btn btn-default" href="{{$prev}}">&laquo; Previous</a>
         {{end}}
-        {{if has next}}
+        {{if $next}}
             <a class="btn btn-default" href="{{$next}}">Next &raquo;</a>
         {{end}}
     </div>
