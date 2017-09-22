@@ -68,6 +68,19 @@ export class EntityStore {
 
     }
 
+    public internal(id: string, obj: ASObject) {
+        this._addToCache("kroeg:" + id, obj);
+        return "kroeg:" + id;
+    }
+
+    public clear() {
+        this._cache = {};
+        for (let item in this._handlers) {
+            if (item.startsWith("kroeg:")) continue;
+            this._processGet(item);
+        }
+    }
+
     private async loadDocument(url: string, callback: (err: Error | null, documentObject: jsonld.DocumentObject) => void) {
         try {
             let response = await this.session.authFetch(url);

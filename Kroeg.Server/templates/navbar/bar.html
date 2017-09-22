@@ -1,0 +1,14 @@
+{{wrap nav class="navbar navbar-expand-lg navbar-light bg-light"}}
+<a class="navbar-brand" href="{{$id}}">Kroeg</a>
+<span class="navbar-text">
+    Rendered!
+</span>
+
+<div class="navbar-nav">
+    {{if has loggedInAs}}
+        <a class="nav-item nav-link" href="{{$loggedInAs}}">Logged in as {{$loggedInAs %name}}</a>
+        <a class="nav-item nav-link" onclick="Kroeg.logout()">Log out</a>
+    {{else}}
+        <a class="nav-item nav-link" onclick="Kroeg.login()">Log in</a>
+    {{end}}
+</div>

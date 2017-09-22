@@ -7,7 +7,7 @@ export class RenderHost {
     private _object: ASObject;
     private _id: string;
     private _template: string;
-    private _dom: HTMLDivElement;
+    private _dom: Element;
     private _storeActivityToken: StoreActivityToken;
     private _subrender: RenderHost[] = [];
 
@@ -17,7 +17,7 @@ export class RenderHost {
     public get template(): string { return this._template; }
     public set template(value: string) { this._template = value; this.render(); }
 
-    constructor(private renderer: TemplateRenderer, private store: EntityStore, id: string, template: string, dom?: HTMLDivElement, private _parent?: RenderHost) {
+    constructor(private renderer: TemplateRenderer, private store: EntityStore, id: string, template: string, dom?: Element, private _parent?: RenderHost) {
         this._dom = dom != null ? dom : document.createElement("div");
         this._id = id;
         this._template = template;
@@ -43,7 +43,7 @@ export class RenderHost {
             this.store.deregister(this._storeActivityToken);
     }
 
-    public get element(): HTMLDivElement { return this._dom; }
+    public get element(): Element { return this._dom; }
 
     private _reupdate(old: ASObject, newObject: ASObject) {
         this._object = newObject;

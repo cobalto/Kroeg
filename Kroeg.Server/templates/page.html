@@ -8,6 +8,15 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
     </head>
     <body>
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+            <a class="navbar-brand" href="#">Kroeg</a>
+            <span class="navbar-text">
+                <noscript>No JavaScript!</noscript>
+                <span id="navbar-js-error" style="display: none">Rendering...</span>
+                <script> document.getElementById("navbar-js-error").style.display = ""; </script>
+            </span>
+        </nav>
+
         {{render:body}}
 
         <script>

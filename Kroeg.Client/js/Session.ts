@@ -21,6 +21,8 @@ export class Session {
     private _uploadMedia: string;
     private _outbox: string;
 
+    public get user() { return this._user; }
+
     public async set(token: string, user: string): Promise<void> {
         this._token = token;
         this._user = user;

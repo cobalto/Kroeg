@@ -142,7 +142,7 @@ export class TemplateRenderer {
         if (result == null) return "";
 
         let text: string;
-        if (Array.isArray(result)) text = result[0].toString();
+        if (Array.isArray(result)) text = result.length > 0 ? result[0].toString() : "";
         else text = result == null ? "" : result.toString();
 
         if (!isHtml) text = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");;
