@@ -99,9 +99,9 @@ namespace Kroeg.Server.Controllers
         }
 
         [HttpGet("login")]
-        public IActionResult Login(string redirect)
+        public IActionResult Login(string returnUrl)
         {
-            return View(new LoginViewModel { Redirect = redirect });
+            return View(new LoginViewModel { Redirect = returnUrl });
         }
 
         [HttpGet("logout")]
